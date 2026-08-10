@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Meridian AMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="topnav">
+    <div class="brand"><div class="mark"><span>M</span></div><b>Meridian University</b></div>
+    <div class="sep"></div>
+    <div class="who">User Administration<small class="mono">accounts &amp; access</small></div>
+    <div class="spacer"></div>
+    <div id="userChip"></div>
+  </nav>
+
+  <div class="hero">
+    <div class="eyebrow">Administration</div>
+    <h1>Users &amp; access</h1>
+    <p>Create and remove college officers and agent operators, and reset passwords. Passwords are stored as salted one-way hashes.</p>
+  </div>
+
+  <div class="wrap">
+    <div class="grid-side">
+      <div>
+        <div class="box">
+          <div class="box-h"><h3>Add a user</h3></div>
+          <div class="box-b">
+            <div class="field"><label>Role</label>
+              <select id="role">
+                <option value="officer">College officer</option>
+                <option value="agent">Agent</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+            <div class="field" id="agencyField" style="display:none"><label>Agency (for agent)</label>
+              <select id="agentId"></select>
+            </div>
+            <div class="field"><label>Full name</label><input id="fullName" type="text" placeholder="e.g. Jordan Kelly" /></div>
+            <div class="field"><label>Username</label><input id="username" type="text" placeholder="login name" /></div>
+            <div class="field"><label>Password (min 8 chars)</label><input id="password" type="text" placeholder="set an initial password" /></div>
+            <button class="btn primary block" id="addBtn">Create user</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="sec-head"><h2>Existing users</h2><p>Reset a password or remove an account.</p></div>
+        <div class="box"><div id="userList"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

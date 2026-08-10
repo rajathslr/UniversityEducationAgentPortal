@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meridian — College Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="topnav">
+    <div class="brand"><div class="mark"><span>M</span></div><b>Meridian University</b></div>
+    <div class="sep"></div>
+    <div class="who">Agent Management Console<small class="mono">CRICOS 00000A · TEQSA regulated</small></div>
+    <div class="spacer"></div>
+    <div id="userChip"></div>
+  </nav>
+
+  <div class="hero">
+    <div class="eyebrow">College console</div>
+    <h1>Your education agents</h1>
+    <p>Review agent applications, keep marketing materials up to date, and check that each commission follows the rules before it is paid.</p>
+  </div>
+
+  <div class="tabs">
+    <a href="#" data-phase="pipeline" class="active">Step 1 · Applications</a>
+    <a href="#" data-phase="collateral">Step 2 · Marketing materials</a>
+    <a href="#" data-phase="reconciliation">Step 3 · Commission review</a>
+    <a href="#" data-phase="offboarding">Step 4 · Offboarding</a>
+  </div>
+
+  <div class="wrap">
+    <!-- STEP 1 -->
+    <section class="panel show" id="phase-pipeline">
+      <div class="sec-head">
+        <h2>Applications</h2>
+        <p>New → In review → Documents requested → Checks done → Decision. Click an agency to review.</p>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+      <div id="dossier" style="margin-top:18px"></div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section class="panel" id="phase-collateral">
+      <div class="sec-head"><h2>Marketing materials &amp; confirmations</h2>
+        <p>Only one current version of each file. The record shows which agents confirmed they are using it.</p></div>
+      <div id="collateral"></div>
+    </section>
+
+    <!-- STEP 3 -->
+    <section class="panel" id="phase-reconciliation">
+      <div class="sec-head"><h2>Commission review</h2>
+        <p>The system checks each commission against the rules and shows the result.</p></div>
+      <div id="recon"></div>
+    </section>
+
+    <!-- STEP 4 -->
+    <section class="panel" id="phase-offboarding">
+      <div class="sec-head"><h2>Ending an agreement</h2>
+        <p>Give an agent notice, wait for them to confirm it, then complete the offboarding. Their final commission statement stays available to them.</p></div>
+      <div id="offboarding"></div>
+    </section>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/college.js"></script>
+</body>
+</html>
