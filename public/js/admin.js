@@ -38,7 +38,27 @@ async function init() {
   document.getElementById('createAgencyBtn').addEventListener('click', createAgency);
   fillAgencySample();
 
+  await loadAgencies();
   await loadUsers();
+}
+
+// ---- existing agencies list ----
+const STAGE_CHIP_A = { 'New': 'grey', 'In Review': 'blue', 'Docs Requested': 'amber', 'Verified': 'teal', 'Decision': 'green' };
+async function loadAgencies() {
+  const agents = await getJSON('/api/agents');
+  const host = document.getElementById('agencyList');
+  host.innerHTML = '';
+  if (!agents.length) { host.appendChild(el('div', { class: 'box-b' }, [el('div', { class: 'empty' }, ['No agencies yet.'])])); return; }
+  const rows = agents.map((a) => [
+    { node: el('div', {}, [el('div', { class: 'sname' }, [a.business_name]), el('div', { class: 'ssub mono' }, ['ABN ' + a.abn])]) },
+    { node: chip(a.stage, STAGE_CHIP_A[a.stage] || 'grey', true) },
+    { node: a.decision ? chip(a.decision, a.decision === 'Approved' ? 'green' : 'red', true) : el('span', { class: 'muted small' }, ['—']) },
+    { node: (a.relationship_status && a.relationship_status !== 'Active')
+        ? chip(a.relationship_status, a.relationship_status === 'Terminated' ? 'red' : 'amber', true)
+        : chip('Active', 'green') },
+    a.operator_name || '—',
+  ]);
+  host.appendChild(table(['Agency', 'Stage', 'Decision', 'Relationship', 'Operator'], rows));
 }
 
 // ---- create agency (prefilled, editable) ----
@@ -77,6 +97,7 @@ async function createAgency() {
     const r = await postJSON('/api/admin/agencies', body);
     toast('Agency created — login “' + r.user.username + '” · starts at New with documents requested.', 'ok');
     fillAgencySample();
+    await loadAgencies();
     await loadUsers();
   } catch (e) { toast(e.message, 'err'); }
 }
