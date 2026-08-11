@@ -9,11 +9,11 @@ let cache = {};
 const DOC_TYPES = ['ASIC extract', 'PIER cert', 'QEAC cert', 'MARN', 'Police check', 'Insurance certificate'];
 
 // ---- tabs ----
-document.querySelector('.tabs').addEventListener('click', (e) => {
+document.querySelector('#agentNav').addEventListener('click', (e) => {
   const a = e.target.closest('a[data-tab]');
   if (!a) return;
   e.preventDefault();
-  document.querySelectorAll('.tabs a').forEach((x) => x.classList.toggle('active', x === a));
+  document.querySelectorAll('#agentNav a').forEach((x) => x.classList.toggle('active', x === a));
   document.querySelectorAll('.panel').forEach((p) => p.classList.remove('show'));
   document.getElementById('tab-' + a.dataset.tab).classList.add('show');
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -79,44 +79,23 @@ function renderApplication(a) {
   host.innerHTML = '';
   const grid = el('div', { class: 'grid-2' });
 
-  // Documents on file + upload
+  // Requested documents — upload one real file per request
   const dl = el('div');
+  const done = a.documents.filter((d) => d.status === 'Verified').length;
   const docsBox = el('div', { class: 'box' }, [
-    el('div', { class: 'box-h' }, [el('h3', {}, ['Documents on file']), el('div', { class: 'spacer' }),
-      a.documents.length && a.documents.every((d) => d.verified) ? chip('Complete', 'green', true) : chip(a.documents.length + ' uploaded', 'grey')]),
+    el('div', { class: 'box-h' }, [el('h3', {}, ['Your documents']), el('div', { class: 'spacer' }),
+      a.documents.length ? chip(done + ' of ' + a.documents.length + ' checked', done === a.documents.length ? 'green' : 'grey', true) : null]),
   ]);
   const db = el('div', { class: 'box-b' });
-  if (!a.documents.length) db.appendChild(el('div', { class: 'empty' }, ['No documents yet. Upload your first below.']));
-  a.documents.forEach((d) => {
-    db.appendChild(el('div', { class: 'doc' }, [
-      el('div', { class: 'ic ' + (d.verified ? 'green' : 'amber') }, [abbr(d.doc_type)]),
-      el('div', { class: 'info' }, [el('b', {}, [d.doc_type]),
-        el('small', {}, [(d.reference || '—') + (d.expiry_date ? ' · expires ' + fmtDate(d.expiry_date) : '')])]),
-      d.verified ? chip('Checked', 'green', true) : chip('Being checked', 'amber', true),
-    ]));
-  });
+  if (!a.documents.length) {
+    db.appendChild(el('div', { class: 'empty' }, ['The college has not requested any documents yet.']));
+  } else {
+    db.appendChild(el('p', { style: 'margin:0 0 8px;font-size:12.5px;color:var(--muted)' },
+      ['Upload one file for each document the college has requested. PDF, PNG or JPG · up to 10 MB.']));
+    a.documents.forEach((d) => db.appendChild(agentDocRow(a, d)));
+  }
   docsBox.appendChild(db);
   dl.appendChild(docsBox);
-
-  // Upload form (only while a decision hasn't been made)
-  if (!a.decision) {
-    const up = el('div', { class: 'box' }, [el('div', { class: 'box-h' }, [el('h3', {}, ['Upload a document'])])]);
-    const form = el('div', { class: 'box-b' });
-    const typeSel = el('select', {}, DOC_TYPES.map((t) => el('option', { value: t }, [t])));
-    const refInput = el('input', { type: 'text', placeholder: 'Reference / certificate no.' });
-    const expInput = el('input', { type: 'date' });
-    form.appendChild(el('div', { class: 'field' }, [el('label', {}, ['Document type']), typeSel]));
-    form.appendChild(el('div', { class: 'split' }, [
-      el('div', { class: 'field' }, [el('label', {}, ['Reference']), refInput]),
-      el('div', { class: 'field' }, [el('label', {}, ['Expiry (if any)']), expInput]),
-    ]));
-    form.appendChild(el('button', { class: 'btn primary sm', onclick: () =>
-      uploadDoc(a.id, typeSel.value, refInput.value, expInput.value) }, ['⬆ Upload document']));
-    form.appendChild(el('div', { class: 'note' }, [el('span', { class: 'i' }, ['ℹ']),
-      'If you also give migration advice, upload your migration agent number (MARN). You will then need to sign a conflict-of-interest form before your students can proceed.']));
-    up.appendChild(form);
-    dl.appendChild(up);
-  }
   grid.appendChild(dl);
 
   // Right column: status + agreement + notifications
@@ -351,13 +330,59 @@ async function acknowledgeNotice(tid) {
   } catch (e) { toast('Could not confirm: ' + e.message, 'err'); }
 }
 
-// ---- write actions ----
-async function uploadDoc(id, docType, ref, exp) {
+// ---- documents (request-driven, real files) ----
+function agentDocRow(a, d) {
+  const fileUrl = '/api/agents/' + a.id + '/documents/' + d.id + '/file';
+  const acts = el('div', { class: 'acts' });
+  const statusChip = d.status === 'Verified' ? chip('Checked', 'green', true)
+    : d.status === 'Uploaded' ? chip('Uploaded — being checked', 'amber', true)
+      : chip('Requested', 'grey', true);
+
+  if (d.status === 'Verified') {
+    acts.appendChild(el('a', { class: 'btn sm', href: fileUrl, target: '_blank', rel: 'noopener' }, ['View']));
+  } else {
+    const input = el('input', { type: 'file', accept: '.pdf,.png,.jpg,.jpeg' });
+    const btn = el('button', { class: 'btn sm primary', onclick: () => {
+      const f = input.files && input.files[0];
+      if (!f) { toast('Choose a file first.', 'err'); return; }
+      uploadDocFile(a.id, d.id, f);
+    } }, [d.status === 'Uploaded' ? 'Replace' : '⬆ Upload']);
+    acts.appendChild(input);
+    acts.appendChild(btn);
+    if (d.status === 'Uploaded') {
+      acts.appendChild(el('a', { class: 'btn sm', href: fileUrl, target: '_blank', rel: 'noopener' }, ['View']));
+      acts.appendChild(el('button', { class: 'btn sm danger', onclick: () => deleteDocFile(a.id, d.id) }, ['Delete']));
+    }
+  }
+  return el('div', { class: 'docfile' }, [
+    el('div', { class: 'meta' }, [
+      el('b', {}, [d.doc_type]),
+      el('small', {}, [d.original_filename ? d.original_filename + ' · ' + fmtBytes(d.size_bytes) : 'Requested by the college — please upload']),
+    ]),
+    statusChip,
+    acts,
+  ]);
+}
+async function uploadDocFile(agentId, docId, file) {
   try {
-    await postJSON('/api/agents/' + id + '/documents', { doc_type: docType, reference: ref || null, expiry_date: exp || null });
-    toast('Uploaded ' + docType + ' — being checked.', 'ok');
-    await load(id);
+    await apiUpload('/api/agents/' + agentId + '/documents/' + docId + '/file', file);
+    toast('File uploaded.', 'ok');
+    await load(agentId);
   } catch (e) { toast('Upload failed: ' + e.message, 'err'); }
+}
+async function deleteDocFile(agentId, docId) {
+  if (!confirm('Delete this uploaded file? You can upload a new one afterwards.')) return;
+  try {
+    await api('DELETE', '/api/agents/' + agentId + '/documents/' + docId + '/file');
+    toast('File removed.', 'ok');
+    await load(agentId);
+  } catch (e) { toast('Delete failed: ' + e.message, 'err'); }
+}
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 async function acknowledge(versionId, id) {
   try {

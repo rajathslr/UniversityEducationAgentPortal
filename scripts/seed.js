@@ -98,10 +98,14 @@ async function main() {
     // Compliance documents + referee checks
     // ---------------------------------------------------------------
     async function addDoc(agentId, doc_type, reference, expiry, verified) {
+      // Seeded docs are historical (no real file on disk); mark them as
+      // Verified or Uploaded so the request/upload UI shows them sensibly.
+      const status = verified ? 'Verified' : 'Uploaded';
       await db.query(
-        `INSERT INTO agent_documents (agent_id, doc_type, reference, expiry_date, verified)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [agentId, doc_type, reference, expiry || null, verified || false]
+        `INSERT INTO agent_documents
+           (agent_id, doc_type, reference, expiry_date, verified, status, requested_by, uploaded_at)
+         VALUES ($1,$2,$3,$4,$5,$6,'College Admin', now())`,
+        [agentId, doc_type, reference, expiry || null, verified || false, status]
       );
     }
     async function addReferee(agentId, name, org, contact, status) {

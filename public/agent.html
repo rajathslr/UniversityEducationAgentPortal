@@ -25,20 +25,22 @@
     <div id="heroRail"></div>
   </div>
 
-  <div class="tabs">
-    <a href="#" data-tab="application" class="active">My application</a>
-    <a href="#" data-tab="collateral">Marketing materials <span class="b" id="ackBadge" style="display:none"></span></a>
-    <a href="#" data-tab="students">My students</a>
-    <a href="#" data-tab="commissions">Commissions</a>
-    <a href="#" data-tab="account">Account</a>
-  </div>
-
-  <div class="wrap">
-    <section class="panel show" id="tab-application"></section>
-    <section class="panel" id="tab-collateral"></section>
-    <section class="panel" id="tab-account"></section>
-    <section class="panel" id="tab-students"></section>
-    <section class="panel" id="tab-commissions"></section>
+  <div class="appshell">
+    <aside class="sidebar" id="agentNav" aria-label="Agent navigation">
+      <div class="side-h">Menu</div>
+      <a href="#" data-tab="application" class="active"><span class="ic">📄</span>My application</a>
+      <a href="#" data-tab="collateral"><span class="ic">📁</span>Marketing materials <span class="b" id="ackBadge" style="display:none"></span></a>
+      <a href="#" data-tab="students"><span class="ic">🎓</span>My students</a>
+      <a href="#" data-tab="commissions"><span class="ic">💷</span>Commissions</a>
+      <a href="#" data-tab="account"><span class="ic">⚙</span>Account</a>
+    </aside>
+    <main class="content">
+      <section class="panel show" id="tab-application"></section>
+      <section class="panel" id="tab-collateral"></section>
+      <section class="panel" id="tab-account"></section>
+      <section class="panel" id="tab-students"></section>
+      <section class="panel" id="tab-commissions"></section>
+    </main>
   </div>
 
   <script src="/js/common.js"></script>

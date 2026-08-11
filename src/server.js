@@ -10,6 +10,27 @@ const db = require('./db');
 const { reconcileInvoice } = require('./reconciliation');
 const auth = require('./auth');
 const logger = require('./logger');
+const multer = require('multer');
+
+// --- file uploads (real compliance documents) ---
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const ALLOWED_MIME = { 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg' };
+const upload = multer({
+  storage: multer.memoryStorage(),          // validate before writing to disk
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) =>
+    cb(null, Object.prototype.hasOwnProperty.call(ALLOWED_MIME, file.mimetype)),
+});
+// Wrap multer so its errors return a clean 400 instead of a 500.
+function uploadSingle(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed.' });
+    next();
+  });
+}
+function sanitizeName(name) {
+  return String(name || 'file').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 120);
+}
 
 const app = express();
 app.use(express.json({ limit: '64kb' }));
@@ -189,6 +210,76 @@ app.delete('/api/admin/users/:id', wrap(async (req, res) => {
   res.json({ ok: true, deleted: id });
 }));
 
+// Default documents auto-requested when a new agency is created.
+const DEFAULT_DOC_CHECKLIST = ['ASIC extract', 'PIER/QEAC certificate'];
+
+// POST /api/admin/agencies  — admin creates a new agency (starts at 'New') + its agent login (admin only)
+app.post('/api/admin/agencies', wrap(async (req, res) => {
+  const b = req.body || {};
+  const businessName = (b.business_name || '').trim();
+  const abnRaw = (b.abn || '').trim();
+  const abnDigits = abnRaw.replace(/\s+/g, '');
+  const operatorName = (b.operator_name || '').trim();
+  const operatorEmail = (b.operator_email || '').trim();
+  const sourceMarket = (b.source_market || 'India').trim();
+  const marn = (b.marn || '').trim() || null;
+  const username = (b.username || '').trim();
+  const password = b.password || '';
+
+  // --- basic validation ---
+  const errs = [];
+  if (!businessName) errs.push('Business name is required.');
+  if (!/^\d{11}$/.test(abnDigits)) errs.push('ABN must be 11 digits.');
+  if (!operatorName) errs.push('Operator name is required.');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(operatorEmail)) errs.push('A valid operator email is required.');
+  if (!username) errs.push('A login username is required.');
+  if (String(password).length < 8) errs.push('Password must be at least 8 characters.');
+  if (marn && !/^MARN-?\d{4,10}$/i.test(marn)) errs.push('MARN looks invalid (e.g. MARN-1234567).');
+  if (errs.length) return res.status(400).json({ error: errs.join(' ') });
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const agent = (await client.query(
+      `INSERT INTO agents (business_name, abn, operator_name, operator_email, source_market, stage, marn)
+       VALUES ($1,$2,$3,$4,$5,'New',$6) RETURNING *`,
+      [businessName, abnRaw, operatorName, operatorEmail, sourceMarket, marn]
+    )).rows[0];
+
+    let user;
+    try {
+      user = (await client.query(
+        `INSERT INTO users (username, password_hash, role, full_name, agent_id)
+         VALUES ($1,$2,'agent',$3,$4) RETURNING id, username, role, agent_id`,
+        [username, auth.hashPassword(password), operatorName, agent.id]
+      )).rows[0];
+    } catch (e) {
+      if (e.code === '23505') { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That username is already taken.' }); }
+      throw e;
+    }
+
+    // Auto-request the standard onboarding documents so the agent can start uploading.
+    for (const dt of DEFAULT_DOC_CHECKLIST) {
+      await client.query(
+        `INSERT INTO agent_documents (agent_id, doc_type, status, requested_by)
+         VALUES ($1,$2,'Requested',$3)`,
+        [agent.id, dt, req.user.username]
+      );
+    }
+    await appendAudit(client, agent.id, 'AGENT_CREATED',
+      `Agency created by admin. Login "${username}" issued. ${DEFAULT_DOC_CHECKLIST.length} documents requested.`,
+      req.user.username);
+
+    await client.query('COMMIT');
+    res.json({ ok: true, agent, user });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}));
+
 // =====================================================================
 // Phase 1 — Agents pipeline
 // =====================================================================
@@ -362,34 +453,65 @@ app.post('/api/agents/:id/stage', officerOnly, wrap(async (req, res) => {
   }
 }));
 
-// POST /api/agents/:id/documents {doc_type, reference, expiry_date}  — agent uploads (own agency) or officer/admin
-app.post('/api/agents/:id/documents', wrap(async (req, res) => {
+// POST /api/agents/:id/documents/request {doc_type}  — officer requests ONE document (officers/admin)
+app.post('/api/agents/:id/documents/request', officerOnly, wrap(async (req, res) => {
   const id = Number(req.params.id);
+  const doc_type = (req.body && req.body.doc_type || '').trim();
+  if (!doc_type) return res.status(400).json({ error: 'A document type is required.' });
+  const a = (await db.query(`SELECT id FROM agents WHERE id=$1`, [id])).rows[0];
+  if (!a) return res.status(404).json({ error: 'Agent not found' });
+  const doc = (await db.query(
+    `INSERT INTO agent_documents (agent_id, doc_type, status, requested_by)
+     VALUES ($1,$2,'Requested',$3) RETURNING *`,
+    [id, doc_type, req.user.username]
+  )).rows[0];
+  await appendAudit(null, id, 'DOC_REQUESTED', `Requested document: ${doc_type}.`, req.user.username);
+  res.json({ ok: true, document: doc });
+}));
+
+// POST /api/agents/:id/documents/:docId/file  (multipart 'file') — agent uploads the real file (own) or officer/admin
+app.post('/api/agents/:id/documents/:docId/file', uploadSingle, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const docId = Number(req.params.docId);
   if (!auth.canActOnAgent(req.user, id)) return res.status(403).json({ error: 'You can only upload for your own agency.' });
-  const { doc_type, reference, expiry_date } = req.body || {};
-  if (!doc_type) return res.status(400).json({ error: 'doc_type is required.' });
+  if (!req.file) return res.status(400).json({ error: 'Attach a PDF, PNG or JPG file (max 10 MB).' });
 
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const a = (await client.query(`SELECT * FROM agents WHERE id=$1 FOR UPDATE`, [id])).rows[0];
     if (!a) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Agent not found' }); }
-
     const doc = (await client.query(
-      `INSERT INTO agent_documents (agent_id, doc_type, reference, expiry_date, verified)
-       VALUES ($1,$2,$3,$4,FALSE) RETURNING *`,
-      [id, doc_type, reference || null, expiry_date || null]
+      `SELECT * FROM agent_documents WHERE id=$1 AND agent_id=$2 FOR UPDATE`, [docId, id]
     )).rows[0];
-    await appendAudit(client, id, 'DOC_UPLOADED',
-      `Agent uploaded ${doc_type}${reference ? ' (' + reference + ')' : ''} — being checked.`, 'Agent');
+    if (!doc) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'No such document request for this agency.' }); }
 
-    // Uploading a document while brand-new nudges the application into review.
+    // Write the new file, then remove any previous file for this slot (replace).
+    const dir = path.join(UPLOAD_DIR, String(id));
+    fs.mkdirSync(dir, { recursive: true });
+    const stored = `${docId}-${Date.now()}${ALLOWED_MIME[req.file.mimetype]}`;
+    fs.writeFileSync(path.join(dir, stored), req.file.buffer);
+    if (doc.stored_filename) {
+      try { fs.unlinkSync(path.join(dir, doc.stored_filename)); } catch (e) { /* ignore */ }
+    }
+
+    await client.query(
+      `UPDATE agent_documents
+         SET original_filename=$2, stored_filename=$3, mime_type=$4, size_bytes=$5,
+             uploaded_at=now(), status='Uploaded', verified=FALSE
+       WHERE id=$1`,
+      [docId, sanitizeName(req.file.originalname), stored, req.file.mimetype, req.file.size]
+    );
+    await appendAudit(client, id, 'DOC_UPLOADED',
+      `Uploaded ${doc.doc_type} (${sanitizeName(req.file.originalname)}).`, req.user.role === 'agent' ? 'Agent' : req.user.username);
+
+    // First document received on a brand-new application nudges it into review.
     if (a.stage === 'New') {
       await client.query(`UPDATE agents SET stage='In Review' WHERE id=$1`, [id]);
       await appendAudit(client, id, 'STAGE_CHANGE', 'New -> In Review (documents received)');
     }
     await client.query('COMMIT');
-    res.json({ ok: true, document: doc });
+    res.json({ ok: true, document_id: docId, status: 'Uploaded' });
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
@@ -398,27 +520,69 @@ app.post('/api/agents/:id/documents', wrap(async (req, res) => {
   }
 }));
 
-// POST /api/agents/:id/documents/:docId/verify  — college verifies a document (officers/admin)
+// GET /api/agents/:id/documents/:docId/file  — view/download the file (own agency or officer/admin)
+app.get('/api/agents/:id/documents/:docId/file', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const docId = Number(req.params.docId);
+  if (!auth.canActOnAgent(req.user, id)) return res.status(403).json({ error: 'Not permitted.' });
+  const doc = (await db.query(
+    `SELECT * FROM agent_documents WHERE id=$1 AND agent_id=$2`, [docId, id]
+  )).rows[0];
+  if (!doc || !doc.stored_filename) return res.status(404).json({ error: 'No file uploaded for this document.' });
+  const filePath = path.join(UPLOAD_DIR, String(id), doc.stored_filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File missing on server.' });
+  res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${sanitizeName(doc.original_filename)}"`);
+  fs.createReadStream(filePath).pipe(res);
+}));
+
+// DELETE /api/agents/:id/documents/:docId/file  — remove the uploaded file (own agency or officer/admin)
+app.delete('/api/agents/:id/documents/:docId/file', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const docId = Number(req.params.docId);
+  if (!auth.canActOnAgent(req.user, id)) return res.status(403).json({ error: 'Not permitted.' });
+  const doc = (await db.query(`SELECT * FROM agent_documents WHERE id=$1 AND agent_id=$2`, [docId, id])).rows[0];
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  if (doc.stored_filename) {
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, String(id), doc.stored_filename)); } catch (e) { /* ignore */ }
+  }
+  await db.query(
+    `UPDATE agent_documents
+       SET original_filename=NULL, stored_filename=NULL, mime_type=NULL, size_bytes=NULL,
+           uploaded_at=NULL, status='Requested', verified=FALSE
+     WHERE id=$1`, [docId]
+  );
+  await appendAudit(null, id, 'DOC_FILE_DELETED', `Removed the file for ${doc.doc_type}.`,
+    req.user.role === 'agent' ? 'Agent' : req.user.username);
+  res.json({ ok: true, document_id: docId, status: 'Requested' });
+}));
+
+// DELETE /api/agents/:id/documents/:docId  — officer cancels a document request entirely (officers/admin)
+app.delete('/api/agents/:id/documents/:docId', officerOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const docId = Number(req.params.docId);
+  const doc = (await db.query(`SELECT * FROM agent_documents WHERE id=$1 AND agent_id=$2`, [docId, id])).rows[0];
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  if (doc.stored_filename) {
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, String(id), doc.stored_filename)); } catch (e) { /* ignore */ }
+  }
+  await db.query(`DELETE FROM agent_documents WHERE id=$1`, [docId]);
+  await appendAudit(null, id, 'DOC_REQUEST_CANCELLED', `Cancelled the request for ${doc.doc_type}.`, req.user.username);
+  res.json({ ok: true, deleted: docId });
+}));
+
+// POST /api/agents/:id/documents/:docId/verify  — college verifies an uploaded document (officers/admin)
 app.post('/api/agents/:id/documents/:docId/verify', officerOnly, wrap(async (req, res) => {
   const id = Number(req.params.id);
   const docId = Number(req.params.docId);
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-    const doc = (await client.query(
-      `SELECT * FROM agent_documents WHERE id=$1 AND agent_id=$2 FOR UPDATE`, [docId, id]
-    )).rows[0];
-    if (!doc) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Document not found' }); }
-    await client.query(`UPDATE agent_documents SET verified=TRUE WHERE id=$1`, [docId]);
-    await appendAudit(client, id, 'DOC_VERIFIED', `Checked ${doc.doc_type}${doc.reference ? ' (' + doc.reference + ')' : ''}.`);
-    await client.query('COMMIT');
-    res.json({ ok: true, document_id: docId, verified: true });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
+  const doc = (await db.query(`SELECT * FROM agent_documents WHERE id=$1 AND agent_id=$2`, [docId, id])).rows[0];
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  if (doc.status === 'Requested' || !doc.stored_filename) {
+    return res.status(409).json({ error: 'Cannot verify a document before the agent has uploaded a file.' });
   }
+  await db.query(`UPDATE agent_documents SET status='Verified', verified=TRUE WHERE id=$1`, [docId]);
+  await appendAudit(null, id, 'DOC_VERIFIED', `Checked ${doc.doc_type}${doc.reference ? ' (' + doc.reference + ')' : ''}.`, req.user.username);
+  res.json({ ok: true, document_id: docId, verified: true });
 }));
 
 // GET /api/agents/:id/performance  (own agency for agents; any for officers/admin)

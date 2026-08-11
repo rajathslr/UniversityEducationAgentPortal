@@ -48,14 +48,28 @@ CREATE TABLE agents (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- A document is REQUESTED by an officer, then FULFILLED by the agent uploading
+-- exactly one real file, then VERIFIED by an officer.
+--   status: 'Requested' -> 'Uploaded' -> 'Verified'
+-- Files live on disk under uploads/<agent_id>/; only metadata is stored here.
 CREATE TABLE agent_documents (
-  id          SERIAL PRIMARY KEY,
-  agent_id    INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-  doc_type    TEXT    NOT NULL,        -- 'ASIC extract' | 'PIER cert' | 'QEAC cert' | 'MARN'
-  reference   TEXT,                    -- e.g. cert number
-  expiry_date DATE,                    -- for certs with an expiry
-  verified    BOOLEAN NOT NULL DEFAULT FALSE
+  id                SERIAL PRIMARY KEY,
+  agent_id          INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  doc_type          TEXT    NOT NULL,     -- 'ASIC extract' | 'PIER cert' | 'QEAC cert' | 'MARN' | ...
+  reference         TEXT,                 -- e.g. cert number (optional, agent-supplied)
+  expiry_date       DATE,                 -- for certs with an expiry (optional)
+  status            TEXT    NOT NULL DEFAULT 'Requested', -- Requested | Uploaded | Verified
+  verified          BOOLEAN NOT NULL DEFAULT FALSE,       -- kept in sync (verified = status='Verified')
+  requested_by      TEXT,                 -- officer/admin username who asked for it
+  requested_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- File metadata (populated on upload; NULL while just Requested)
+  original_filename TEXT,
+  stored_filename   TEXT,                 -- name on disk (generated, safe)
+  mime_type         TEXT,
+  size_bytes        INTEGER,
+  uploaded_at       TIMESTAMPTZ
 );
+CREATE INDEX agent_documents_agent_idx ON agent_documents(agent_id);
 
 CREATE TABLE referee_checks (
   id           SERIAL PRIMARY KEY,

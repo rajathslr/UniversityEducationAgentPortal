@@ -22,7 +22,53 @@ async function init() {
   toggleAgency();
 
   document.getElementById('addBtn').addEventListener('click', addUser);
+
+  // Agency creation: prefill sample values so it's submit-ready, but editable.
+  document.getElementById('fillSample').addEventListener('click', fillAgencySample);
+  document.getElementById('createAgencyBtn').addEventListener('click', createAgency);
+  fillAgencySample();
+
   await loadUsers();
+}
+
+// ---- create agency (prefilled, editable) ----
+const SAMPLE_NAMES = ['Beacon', 'Summit', 'Orchid', 'Pioneer', 'Coral', 'Vertex', 'Harbour', 'Lotus'];
+function fillAgencySample() {
+  const w = SAMPLE_NAMES[Math.floor(Math.random() * SAMPLE_NAMES.length)];
+  const slug = w.toLowerCase();
+  const set = (id, v) => { document.getElementById(id).value = v; };
+  set('ag_business', w + ' Study Abroad Pty Ltd');
+  set('ag_abn', randAbn());
+  set('ag_market', 'India');
+  set('ag_op', w + ' Operator');
+  set('ag_email', 'operator@' + slug + '.example');
+  set('ag_marn', '');
+  set('ag_user', slug + Math.floor(Math.random() * 90 + 10));
+  set('ag_pass', 'Temp' + Math.floor(Math.random() * 9000 + 1000) + '!');
+}
+function randAbn() {
+  let s = '';
+  for (let i = 0; i < 11; i++) s += Math.floor(Math.random() * 10);
+  return s.replace(/(\d{2})(\d{3})(\d{3})(\d{3})/, '$1 $2 $3 $4');
+}
+async function createAgency() {
+  const val = (id) => document.getElementById(id).value.trim();
+  const body = {
+    business_name: val('ag_business'),
+    abn: val('ag_abn'),
+    source_market: val('ag_market') || 'India',
+    operator_name: val('ag_op'),
+    operator_email: val('ag_email'),
+    marn: val('ag_marn'),
+    username: val('ag_user'),
+    password: val('ag_pass'),
+  };
+  try {
+    const r = await postJSON('/api/admin/agencies', body);
+    toast('Agency created — login “' + r.user.username + '” · starts at New with documents requested.', 'ok');
+    fillAgencySample();
+    await loadUsers();
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 const ROLE_CHIP = { admin: 'blue', officer: 'teal', agent: 'grey' };

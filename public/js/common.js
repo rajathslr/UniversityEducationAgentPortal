@@ -71,6 +71,22 @@ async function api(method, url, body) {
 const getJSON = (u) => api('GET', u);
 const postJSON = (u, b) => api('POST', u, b);
 
+// Multipart file upload (browser sets the Content-Type boundary itself).
+async function apiUpload(url, file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  let res;
+  try { res = await fetch(url, { method: 'POST', body: fd }); }
+  catch (e) { clientLog('error', 'api_network_error', { method: 'POST', url, error: String(e) }); throw e; }
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    clientLog('warn', 'api_error', { method: 'POST', url, status: res.status, error: data && data.error });
+    throw new Error((data && data.error) || res.statusText);
+  }
+  return data;
+}
+
 function el(tag, attrs, children) {
   const node = document.createElement(tag);
   if (attrs) for (const k in attrs) {

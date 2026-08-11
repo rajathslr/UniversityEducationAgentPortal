@@ -109,21 +109,27 @@ function renderDossier(a, audit) {
     ]),
   ]);
   const docsBody = el('div', { class: 'box-b' });
-  if (!a.documents.length) docsBody.appendChild(el('div', { class: 'empty' }, ['No documents uploaded yet — waiting on the agent.']));
-  a.documents.forEach((d) => {
-    const right = d.verified
-      ? chip('Checked', 'green', true)
-      : (a.decision ? chip('Not checked', 'amber')
-        : el('button', { class: 'btn sm', onclick: () => verifyDoc(a.id, d.id) }, ['Mark as checked']));
-    docsBody.appendChild(el('div', { class: 'doc' }, [
-      el('div', { class: 'ic ' + (d.verified ? 'green' : 'amber') }, [abbr(d.doc_type)]),
-      el('div', { class: 'info' }, [
-        el('b', {}, [d.doc_type]),
-        el('small', {}, [(d.reference || '—') + (d.expiry_date ? ' · expires ' + fmtDate(d.expiry_date) : '')]),
+  if (!a.documents.length) docsBody.appendChild(el('div', { class: 'empty' }, ['No documents requested yet. Request one below.']));
+  a.documents.forEach((d) => docsBody.appendChild(collegeDocRow(a, d)));
+
+  // Request a document from the agent (only until a decision is made).
+  if (!a.decision) {
+    const sel = el('select', {}, ['ASIC extract', 'PIER/QEAC certificate', 'MARN', 'Police check', 'Insurance certificate', 'Other']
+      .map((t) => el('option', { value: t }, [t])));
+    const other = el('input', { type: 'text', placeholder: 'Document name', style: 'display:none;margin-top:6px' });
+    sel.addEventListener('change', () => { other.style.display = sel.value === 'Other' ? '' : 'none'; });
+    docsBody.appendChild(el('div', { style: 'margin-top:12px;border-top:1px solid var(--line-2);padding-top:12px' }, [
+      el('div', { style: 'font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px' }, ['Request a document from the agent']),
+      el('div', { style: 'display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap' }, [
+        el('div', {}, [sel, other]),
+        el('button', { class: 'btn sm primary', onclick: () => {
+          const dt = sel.value === 'Other' ? other.value.trim() : sel.value;
+          if (!dt) { toast('Enter a document name.', 'err'); return; }
+          requestDoc(a.id, dt);
+        } }, ['Request']),
       ]),
-      right,
     ]));
-  });
+  }
   docsBox.appendChild(docsBody);
   left.appendChild(docsBox);
 
@@ -244,6 +250,47 @@ async function verifyDoc(agentId, docId) {
     toast('Document marked as checked.', 'ok');
     await selectAgent(agentId);
   } catch (e) { toast(e.message, 'err'); }
+}
+async function requestDoc(agentId, docType) {
+  try {
+    await postJSON('/api/agents/' + agentId + '/documents/request', { doc_type: docType });
+    toast('Requested “' + docType + '” from the agent.', 'ok');
+    await selectAgent(agentId);
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function cancelDocRequest(agentId, docId, name) {
+  if (!confirm('Remove the request for “' + name + '”? Any file the agent uploaded for it is deleted.')) return;
+  try {
+    await api('DELETE', '/api/agents/' + agentId + '/documents/' + docId);
+    toast('Request removed.', 'ok');
+    await selectAgent(agentId);
+  } catch (e) { toast(e.message, 'err'); }
+}
+// A document row on the college dossier: status + view + verify + remove.
+function collegeDocRow(a, d) {
+  const fileUrl = '/api/agents/' + a.id + '/documents/' + d.id + '/file';
+  const acts = el('div', { class: 'acts' });
+  acts.appendChild(d.status === 'Verified' ? chip('Checked', 'green', true)
+    : d.status === 'Uploaded' ? chip('Uploaded', 'amber', true)
+      : chip('Requested', 'grey', true));
+  if (d.status === 'Uploaded' || d.status === 'Verified') {
+    acts.appendChild(el('a', { class: 'btn sm', href: fileUrl, target: '_blank', rel: 'noopener' }, ['View']));
+  }
+  if (d.status === 'Uploaded' && !a.decision) {
+    acts.appendChild(el('button', { class: 'btn sm primary', onclick: () => verifyDoc(a.id, d.id) }, ['Mark as checked']));
+  }
+  if (d.status !== 'Verified' && !a.decision) {
+    acts.appendChild(el('button', { class: 'btn sm danger', onclick: () => cancelDocRequest(a.id, d.id, d.doc_type) }, ['Remove']));
+  }
+  return el('div', { class: 'docfile' }, [
+    el('div', { class: 'meta' }, [
+      el('b', {}, [d.doc_type]),
+      el('small', {}, [d.original_filename
+        ? d.original_filename + ' · uploaded ' + fmtDate(d.uploaded_at)
+        : (d.requested_by ? 'Requested by ' + d.requested_by : 'Requested')]),
+    ]),
+    acts,
+  ]);
 }
 async function approve(id) {
   if (!confirm('Approve this agent? This moves it to Decision, creates the agreement, and adds a line to the history.')) return;
@@ -454,7 +501,8 @@ function labelEvent(e) {
     DOC_UPLOADED: 'Document uploaded', DOC_VERIFIED: 'Document checked',
     COI_SIGNED: 'Conflict-of-interest form signed', COI_REQUESTED: 'Declaration requested', COLLATERAL_ACK: 'Marketing materials confirmed',
     TERMINATION_NOTICE: 'Termination notice sent', TERMINATION_ACK: 'Notice confirmed by agent',
-    TERMINATED: 'Offboarding completed' }[e] || e;
+    TERMINATED: 'Offboarding completed', AGENT_CREATED: 'Agency created',
+    DOC_REQUESTED: 'Document requested', DOC_FILE_DELETED: 'File removed', DOC_REQUEST_CANCELLED: 'Request cancelled' }[e] || e;
 }
 
 (async function initCollege() {

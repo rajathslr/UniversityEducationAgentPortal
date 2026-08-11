@@ -28,6 +28,28 @@
     <div class="grid-side">
       <div>
         <div class="box">
+          <div class="box-h"><h3>Add an agency</h3><div class="spacer"></div>
+            <button class="btn sm" id="fillSample" type="button">Fill sample</button></div>
+          <div class="box-b">
+            <div class="field"><label>Business name</label><input id="ag_business" type="text" /></div>
+            <div class="split">
+              <div class="field"><label>ABN (11 digits)</label><input id="ag_abn" type="text" /></div>
+              <div class="field"><label>Source market</label><input id="ag_market" type="text" /></div>
+            </div>
+            <div class="split">
+              <div class="field"><label>Operator name</label><input id="ag_op" type="text" /></div>
+              <div class="field"><label>Operator email</label><input id="ag_email" type="text" /></div>
+            </div>
+            <div class="field"><label>MARN (optional)</label><input id="ag_marn" type="text" placeholder="e.g. MARN-1234567" /></div>
+            <div class="split">
+              <div class="field"><label>Login username</label><input id="ag_user" type="text" /></div>
+              <div class="field"><label>Initial password (min 8)</label><input id="ag_pass" type="text" /></div>
+            </div>
+            <div class="note"><span class="i">ℹ</span> The agency starts at the New application stage with a standard document checklist. The agent signs in with these details and uploads the requested files.</div>
+            <button class="btn primary block" id="createAgencyBtn">Create agency</button>
+          </div>
+        </div>
+        <div class="box">
           <div class="box-h"><h3>Add a user</h3></div>
           <div class="box-b">
             <div class="field"><label>Role</label>

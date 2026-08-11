@@ -3,6 +3,7 @@ node_modules/
 npm-debug.log
 certs/
 logs/
+uploads/
 
 # saved artifact page (browser "save as" dump) — not part of the project
 Meridian AMS*
