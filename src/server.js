@@ -118,6 +118,26 @@ app.post('/api/client-logs', (req, res) => {
   res.json({ ok: true, reqId: req.id });
 });
 
+// POST /api/referee-callback {token, passed, notes} — OPEN. Called by the
+// Dify referee-facing workflow, not by a logged-in user; the one-time
+// callback_token (a UUID embedded in the referee's link) is the auth.
+app.post('/api/referee-callback', wrap(async (req, res) => {
+  const token = String((req.body && req.body.token) || '').trim();
+  if (!token) return res.status(400).json({ error: 'Missing token.' });
+  const passed = req.body.passed === true || req.body.passed === 'true';
+  const notes = (req.body && req.body.notes) || null;
+  const r = (await db.query(
+    `UPDATE referee_checks SET status=$2, notes=$3, callback_token=NULL
+     WHERE callback_token=$1 RETURNING *`,
+    [token, passed ? 'Passed' : 'Failed', notes]
+  )).rows[0];
+  if (!r) return res.status(404).json({ error: 'Unknown or already-used token.' });
+  await appendAudit(null, r.agent_id, 'REF_CHECK_COMPLETE',
+    `Reference check for ${r.referee_name || 'referee'} came back ${passed ? 'Passed' : 'Failed'}.`,
+    'Referee (via Dify)');
+  res.json({ ok: true });
+}));
+
 // Everything below /api requires an authenticated session.
 app.use('/api', auth.requireAuth);
 
@@ -823,6 +843,106 @@ app.post('/api/coi/:agentId/sign', wrap(async (req, res) => {
   } finally {
     client.release();
   }
+}));
+
+// =====================================================================
+// Reference checks (Dify automation)
+// =====================================================================
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DIFY_WORKFLOW_URL = 'https://api.dify.ai/v1/workflows/run';
+
+// POST /api/agents/:id/referees/request — officer opens a slot for the agent
+// to fill in. Only while the application is still in its first two stages.
+app.post('/api/agents/:id/referees/request', officerOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const a = (await db.query(`SELECT id, stage FROM agents WHERE id=$1`, [id])).rows[0];
+  if (!a) return res.status(404).json({ error: 'Agent not found' });
+  if (!['New', 'In Review'].includes(a.stage)) {
+    return res.status(400).json({ error: 'Reference checks can only be requested while the application is New or In Review.' });
+  }
+  const ref = (await db.query(
+    `INSERT INTO referee_checks (agent_id, status, requested_by) VALUES ($1,'Requested',$2) RETURNING *`,
+    [id, req.user.username]
+  )).rows[0];
+  await appendAudit(null, id, 'REF_REQUESTED', 'Requested a reference check from the agent.', req.user.username);
+  res.json({ ok: true, referee: ref });
+}));
+
+// POST /api/agents/:id/referees/:refId/submit {referee_name, organisation, referee_email}
+// — agent fills in a slot the officer opened (own agency only).
+app.post('/api/agents/:id/referees/:refId/submit', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const refId = Number(req.params.refId);
+  if (!auth.canActOnAgent(req.user, id)) return res.status(403).json({ error: 'You can only submit referees for your own agency.' });
+  const referee_name = ((req.body && req.body.referee_name) || '').trim();
+  const organisation = ((req.body && req.body.organisation) || '').trim();
+  const referee_email = ((req.body && req.body.referee_email) || '').trim();
+  if (!referee_name || !referee_email) return res.status(400).json({ error: 'Referee name and email are required.' });
+  if (!EMAIL_RE.test(referee_email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+  const ref = (await db.query(`SELECT * FROM referee_checks WHERE id=$1 AND agent_id=$2`, [refId, id])).rows[0];
+  if (!ref) return res.status(404).json({ error: 'Reference check not found' });
+  if (ref.status !== 'Requested') return res.status(409).json({ error: 'This reference check has already been submitted.' });
+  const updated = (await db.query(
+    `UPDATE referee_checks SET referee_name=$2, organisation=$3, referee_email=$4, status='Ready', submitted_at=now()
+     WHERE id=$1 RETURNING *`,
+    [refId, referee_name, organisation || null, referee_email]
+  )).rows[0];
+  await appendAudit(null, id, 'REF_SUBMITTED', `Entered referee details: ${referee_name}.`, 'Agent');
+  res.json({ ok: true, referee: updated });
+}));
+
+// POST /api/agents/:id/referees/:refId/send — officer sends the reference
+// check to the Dify automation, which emails the referee a link to a form.
+// The email always goes to REFEREE_NOTIFY_EMAIL (free-tier Dify plan can
+// only send to one address), regardless of the referee_email on file —
+// that value is kept only as a record of what the agent entered.
+app.post('/api/agents/:id/referees/:refId/send', officerOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const refId = Number(req.params.refId);
+  const a = (await db.query(`SELECT * FROM agents WHERE id=$1`, [id])).rows[0];
+  if (!a) return res.status(404).json({ error: 'Agent not found' });
+  const ref = (await db.query(`SELECT * FROM referee_checks WHERE id=$1 AND agent_id=$2`, [refId, id])).rows[0];
+  if (!ref) return res.status(404).json({ error: 'Reference check not found' });
+  if (ref.status !== 'Ready') return res.status(409).json({ error: 'The agent has not entered referee details yet.' });
+  if (!process.env.DIFY_API_KEY || !process.env.REFEREE_NOTIFY_EMAIL || !process.env.DIFY_CALLBACK_FORM_URL) {
+    return res.status(500).json({ error: 'Dify integration is not configured on the server.' });
+  }
+
+  const token = crypto.randomUUID();
+  const callbackUrl = `${process.env.DIFY_CALLBACK_FORM_URL}?token=${token}`;
+  let difyRes;
+  try {
+    difyRes = await fetch(DIFY_WORKFLOW_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.DIFY_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputs: {
+          referee_name: ref.referee_name,
+          referee_email: process.env.REFEREE_NOTIFY_EMAIL, // hardwired — see comment above
+          agent_business_name: a.business_name,
+          callback_url: callbackUrl,
+        },
+        response_mode: 'blocking',
+        user: req.user.username,
+      }),
+    });
+  } catch (e) {
+    req.log.error('dify_call_failed', { err: e });
+    return res.status(502).json({ error: 'Could not reach Dify.' });
+  }
+  const body = await difyRes.json().catch(() => null);
+  if (!difyRes.ok || !body || !body.data || body.data.status !== 'succeeded') {
+    req.log.warn('dify_call_error', { status: difyRes.status, body });
+    return res.status(502).json({ error: (body && (body.message || body.error)) || 'Dify workflow did not complete.' });
+  }
+
+  const updated = (await db.query(
+    `UPDATE referee_checks SET status='Sent', sent_at=now(), callback_token=$2 WHERE id=$1 RETURNING *`,
+    [refId, token]
+  )).rows[0];
+  await appendAudit(null, id, 'REF_CHECK_SENT',
+    `Sent reference check for ${ref.referee_name} to the Dify automation.`, req.user.username);
+  res.json({ ok: true, referee: updated });
 }));
 
 // =====================================================================

@@ -124,14 +124,22 @@ function renderApplication(a) {
     ]));
   }
 
-  // References (read-only)
+  // References — Meridian may open a slot for us to fill in, or we may
+  // already have one in progress / decided.
   if (a.referees.length) {
     const rb = el('div', { class: 'box' }, [el('div', { class: 'box-h' }, [el('h3', {}, ['References'])])]);
     const rbb = el('div', { class: 'box-b' });
-    a.referees.forEach((r) => rbb.appendChild(el('div', { class: 'doc' }, [
-      el('div', { class: 'info' }, [el('b', {}, [r.referee_name]), el('small', {}, [r.organisation || '—'])]),
-      chip(r.status, r.status === 'Passed' ? 'green' : 'amber', true),
-    ])));
+    const refChipColor = { Ready: 'blue', Sent: 'blue', Passed: 'green', Failed: 'red' };
+    a.referees.forEach((r) => {
+      if (r.status === 'Requested') {
+        rbb.appendChild(refereeForm(r, a.id));
+        return;
+      }
+      rbb.appendChild(el('div', { class: 'doc' }, [
+        el('div', { class: 'info' }, [el('b', {}, [r.referee_name]), el('small', {}, [r.organisation || '—'])]),
+        chip(r.status, refChipColor[r.status] || 'amber', true),
+      ]));
+    });
     rb.appendChild(rbb);
     dr.appendChild(rb);
   }
@@ -398,6 +406,27 @@ async function signCOI(id) {
     toast('Form signed — your students are active again.', 'ok');
     await load(id);
   } catch (e) { toast('Sign failed: ' + e.message, 'err'); }
+}
+
+// Meridian has opened a reference-check slot; we fill in who to contact.
+function refereeForm(r, agentId) {
+  const name = el('input', { type: 'text', placeholder: "Referee's name" });
+  const org = el('input', { type: 'text', placeholder: 'Organisation (optional)', style: 'margin-top:8px' });
+  const email = el('input', { type: 'email', placeholder: "Referee's email", style: 'margin-top:8px' });
+  return el('div', { style: 'margin-top:8px;border-top:1px solid var(--line-2);padding-top:12px' }, [
+    el('div', { style: 'font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px' }, ['Meridian requested a reference — who should we contact?']),
+    name, org, email,
+    el('div', { style: 'margin-top:10px' }, [el('button', { class: 'btn sm primary',
+      onclick: () => submitReferee(agentId, r.id, name.value.trim(), org.value.trim(), email.value.trim()) }, ['Submit reference'])]),
+  ]);
+}
+async function submitReferee(agentId, refId, referee_name, organisation, referee_email) {
+  if (!referee_name || !referee_email) { toast('Enter the referee’s name and email.', 'err'); return; }
+  try {
+    await postJSON('/api/agents/' + agentId + '/referees/' + refId + '/submit', { referee_name, organisation, referee_email });
+    toast('Reference submitted.', 'ok');
+    await load(agentId);
+  } catch (e) { toast('Could not submit: ' + e.message, 'err'); }
 }
 
 // ---- helpers ----

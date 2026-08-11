@@ -130,11 +130,18 @@ async function main() {
         [id, orig, stored, PLACEHOLDER_PDF.length]
       );
     }
-    async function addReferee(agentId, name, org, contact, status) {
+    // status: 'Requested' (officer opened a slot, agent hasn't filled it in — name/org/email null),
+    // 'Ready' (agent filled it in, awaiting officer to send), 'Passed'/'Failed' (Dify result landed).
+    async function addReferee(agentId, name, org, email, status) {
+      const requestedAgo = status === 'Requested' ? 1 : 20;
+      const submittedAt = status === 'Requested' ? null : `now() - interval '${status === 'Ready' ? 3 : 18} days'`;
+      const sentAt = (status === 'Passed' || status === 'Failed') ? `now() - interval '15 days'` : null;
       await db.query(
-        `INSERT INTO referee_checks (agent_id, referee_name, organisation, contact, status)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [agentId, name, org, contact, status]
+        `INSERT INTO referee_checks
+           (agent_id, referee_name, organisation, referee_email, status, requested_by, requested_at, submitted_at, sent_at)
+         VALUES ($1,$2,$3,$4,$5,'College Admin', now() - interval '${requestedAgo} days',
+                 ${submittedAt || 'NULL'}, ${sentAt || 'NULL'})`,
+        [agentId, name, org, email, status]
       );
     }
 
@@ -171,12 +178,16 @@ async function main() {
     // Horizon PIER cert expires within 30 days (dashboard: expiring).
     await addDoc(agents.horizon, 'ASIC extract', 'ASIC-2026-10233', null, true);
     await addDoc(agents.horizon, 'PIER cert', 'PIER-HZ-9001', daysFromNow(25), false);
-    await addReferee(agents.horizon, 'Griffith Intl', 'Griffith', 'intl@griffith.example', 'Pending');
+    await addReferee(agents.horizon, 'Griffith Intl', 'Griffith', 'intl@griffith.example', 'Ready');
     // Horizon still owes a requested document.
     await addRequestedDoc(agents.horizon, 'Insurance certificate', 3);
 
+    // Melbourne Pathways (stage 'New') — officer has opened a reference-check
+    // slot but the agent hasn't filled it in yet. Demos the fresh request flow.
+    await addReferee(agents.melbourne, null, null, null, 'Requested');
+
     await addDoc(agents.apex, 'ASIC extract', 'ASIC-2026-33501', null, false);
-    await addReferee(agents.apex, 'QUT Partnerships', 'QUT', 'partners@qut.example', 'Pending');
+    await addReferee(agents.apex, 'QUT Partnerships', 'QUT', 'partners@qut.example', 'Ready');
     // Apex has outstanding document requests — one chased for over a week.
     await addRequestedDoc(agents.apex, 'PIER/QEAC certificate', 10);
     await addRequestedDoc(agents.apex, 'Police check', 2);

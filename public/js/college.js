@@ -159,13 +159,23 @@ function renderDossier(a, audit) {
   // Referees
   const refBox = el('div', { class: 'box' }, [el('div', { class: 'box-h' }, [el('h3', {}, ['Reference checks'])])]);
   const refBody = el('div', { class: 'box-b' });
+  const refChipColor = { Requested: 'amber', Ready: 'blue', Sent: 'blue', Passed: 'green', Failed: 'red' };
   if (!a.referees.length) refBody.appendChild(el('div', { class: 'empty' }, ['None recorded.']));
   a.referees.forEach((r) => {
-    refBody.appendChild(el('div', { class: 'doc' }, [
-      el('div', { class: 'info' }, [el('b', {}, [r.referee_name]), el('small', {}, [r.organisation || '—'])]),
-      chip(r.status, r.status === 'Passed' ? 'green' : r.status === 'Failed' ? 'red' : 'amber', true),
-    ]));
+    const row = el('div', { class: 'doc' }, [
+      el('div', { class: 'info' }, [el('b', {}, [r.referee_name || 'Awaiting referee details']), el('small', {}, [r.organisation || '—'])]),
+    ]);
+    if (r.status === 'Ready') {
+      row.appendChild(el('button', { class: 'btn sm primary', onclick: () => sendReferee(a.id, r.id) }, ['Send reference check']));
+    }
+    row.appendChild(chip(r.status, refChipColor[r.status] || 'amber', true));
+    refBody.appendChild(row);
   });
+  if (['New', 'In Review'].includes(a.stage)) {
+    refBody.appendChild(el('div', { style: 'margin-top:12px;border-top:1px solid var(--line-2);padding-top:12px' }, [
+      el('button', { class: 'btn sm primary', onclick: () => requestReferee(a.id) }, ['Request a reference check']),
+    ]));
+  }
   refBox.appendChild(refBody);
   left.appendChild(refBox);
   cols.appendChild(left);
@@ -280,6 +290,21 @@ async function requestDoc(agentId, docType) {
     toast('Requested “' + docType + '” from the agent.', 'ok');
     await selectAgent(agentId);
   } catch (e) { toast(e.message, 'err'); }
+}
+async function requestReferee(agentId) {
+  try {
+    await postJSON('/api/agents/' + agentId + '/referees/request');
+    toast('Requested a reference check from the agent.', 'ok');
+    await selectAgent(agentId);
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function sendReferee(agentId, refId) {
+  if (!confirm('Send this reference check to the Dify automation now?')) return;
+  try {
+    await postJSON('/api/agents/' + agentId + '/referees/' + refId + '/send');
+    toast('Reference check sent.', 'ok');
+    await selectAgent(agentId);
+  } catch (e) { toast('Could not send: ' + e.message, 'err'); }
 }
 async function cancelDocRequest(agentId, docId, name) {
   if (!confirm('Remove the request for “' + name + '”? Any file the agent uploaded for it is deleted.')) return;
@@ -528,7 +553,9 @@ function labelEvent(e) {
     COI_SIGNED: 'Conflict-of-interest form signed', COI_REQUESTED: 'Declaration requested', COLLATERAL_ACK: 'Marketing materials confirmed',
     TERMINATION_NOTICE: 'Termination notice sent', TERMINATION_ACK: 'Notice confirmed by agent',
     TERMINATED: 'Offboarding completed', AGENT_CREATED: 'Agency created',
-    DOC_REQUESTED: 'Document requested', DOC_FILE_DELETED: 'File removed', DOC_REQUEST_CANCELLED: 'Request cancelled' }[e] || e;
+    DOC_REQUESTED: 'Document requested', DOC_FILE_DELETED: 'File removed', DOC_REQUEST_CANCELLED: 'Request cancelled',
+    REF_REQUESTED: 'Reference check requested', REF_SUBMITTED: 'Referee details entered',
+    REF_CHECK_SENT: 'Reference check sent', REF_CHECK_COMPLETE: 'Reference check result received' }[e] || e;
 }
 
 (async function initCollege() {

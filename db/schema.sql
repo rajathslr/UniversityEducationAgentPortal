@@ -72,12 +72,23 @@ CREATE TABLE agent_documents (
 CREATE INDEX agent_documents_agent_idx ON agent_documents(agent_id);
 
 CREATE TABLE referee_checks (
-  id           SERIAL PRIMARY KEY,
-  agent_id     INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-  referee_name TEXT    NOT NULL,
-  organisation TEXT,
-  contact      TEXT,
-  status       TEXT    NOT NULL DEFAULT 'Pending'  -- 'Pending' | 'Passed' | 'Failed'
+  id             SERIAL PRIMARY KEY,
+  agent_id       INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  -- Officer opens a slot ('Requested'); agent fills it in ('Ready'); officer
+  -- sends it to the Dify reference-check workflow ('Sent'); the referee's
+  -- response lands via callback ('Passed' | 'Failed').
+  referee_name   TEXT,
+  organisation   TEXT,
+  referee_email  TEXT,
+  status         TEXT    NOT NULL DEFAULT 'Requested',  -- 'Requested' | 'Ready' | 'Sent' | 'Passed' | 'Failed'
+  requested_by   TEXT,
+  requested_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  submitted_at   TIMESTAMPTZ,
+  sent_at        TIMESTAMPTZ,
+  -- One-time token embedded in the referee's Dify link; identifies which row
+  -- a callback belongs to. Cleared once the result lands so it can't replay.
+  callback_token TEXT    UNIQUE,
+  notes          TEXT
 );
 
 -- Immutable, append-only. No UPDATE/DELETE in application code.
