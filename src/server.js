@@ -284,6 +284,39 @@ app.post('/api/admin/agencies', wrap(async (req, res) => {
 // Phase 1 — Agents pipeline
 // =====================================================================
 
+// GET /api/college/summary — live dashboard KPIs + per-section pending counts (officers/admin)
+app.get('/api/college/summary', officerOnly, wrap(async (req, res) => {
+  const n = (sql) => db.query(sql).then((r) => Number(r.rows[0].n));
+  const [
+    inPipeline, awaitingReview, docsRequested, docsChased,
+    verifiedThis, verifiedLast, expiringCerts, outstandingAcks, frozenLines, offboarding,
+  ] = await Promise.all([
+    n(`SELECT count(*)::int n FROM agents WHERE decision IS NULL`),
+    n(`SELECT count(*)::int n FROM agents a WHERE a.decision IS NULL
+         AND (a.stage='Verified' OR EXISTS (SELECT 1 FROM agent_documents d WHERE d.agent_id=a.id AND d.status='Uploaded'))`),
+    n(`SELECT count(*)::int n FROM agent_documents WHERE status='Requested'`),
+    n(`SELECT count(*)::int n FROM agent_documents WHERE status='Requested' AND requested_at < now() - interval '7 days'`),
+    n(`SELECT count(*)::int n FROM audit_log WHERE event_type='DOC_VERIFIED' AND date_trunc('month',created_at)=date_trunc('month',now())`),
+    n(`SELECT count(*)::int n FROM audit_log WHERE event_type='DOC_VERIFIED' AND date_trunc('month',created_at)=date_trunc('month',now() - interval '1 month')`),
+    n(`SELECT count(*)::int n FROM agent_documents WHERE expiry_date IS NOT NULL AND expiry_date BETWEEN current_date AND current_date + 30`),
+    n(`SELECT count(*)::int n FROM collateral_versions cv CROSS JOIN agents a
+         WHERE cv.status='CURRENT' AND (a.decision='Approved' OR a.stage='Verified')
+           AND NOT EXISTS (SELECT 1 FROM collateral_acks ca WHERE ca.version_id=cv.id AND ca.agent_id=a.id)`),
+    n(`SELECT count(*)::int n FROM commission_lines cl JOIN agents a ON a.id=cl.agent_id WHERE a.marn IS NOT NULL AND a.coi_signed=FALSE`),
+    n(`SELECT count(*)::int n FROM terminations WHERE status <> 'Terminated'`),
+  ]);
+  res.json({
+    cards: {
+      in_pipeline: inPipeline, awaiting_review: awaitingReview,
+      docs_requested: docsRequested, docs_chased_7d: docsChased,
+      verified_this_month: verifiedThis, verified_delta: verifiedThis - verifiedLast,
+      expiring_certs: expiringCerts,
+    },
+    // pending items needing attention in each console section
+    sections: { pipeline: awaitingReview, collateral: outstandingAcks, reconciliation: frozenLines, offboarding },
+  });
+}));
+
 // GET /api/agents?stage=Verified   (college pipeline — officers/admin only)
 app.get('/api/agents', officerOnly, wrap(async (req, res) => {
   const { stage } = req.query;

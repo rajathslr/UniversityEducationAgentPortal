@@ -4,18 +4,40 @@
 const STAGES = ['New', 'In Review', 'Docs Requested', 'Verified', 'Decision'];
 let selectedAgentId = null;
 
-// ---- Phase tabs ----
-document.querySelector('.tabs').addEventListener('click', (e) => {
+// ---- Section navigation (sidebar) ----
+document.querySelector('#collegeNav').addEventListener('click', (e) => {
   const a = e.target.closest('a[data-phase]');
   if (!a) return;
   e.preventDefault();
-  document.querySelectorAll('.tabs a').forEach((x) => x.classList.toggle('active', x === a));
+  document.querySelectorAll('#collegeNav a').forEach((x) => x.classList.toggle('active', x === a));
   document.querySelectorAll('.panel').forEach((p) => p.classList.remove('show'));
   document.getElementById('phase-' + a.dataset.phase).classList.add('show');
   if (a.dataset.phase === 'collateral') loadCollateral();
   if (a.dataset.phase === 'reconciliation') loadReconciliation();
   if (a.dataset.phase === 'offboarding') loadOffboarding();
+  loadSummary();
 });
+
+// ---- Live console dashboard (cards + per-section pending badges) ----
+async function loadSummary() {
+  let s;
+  try { s = await getJSON('/api/college/summary'); } catch (e) { return; }
+  const c = s.cards;
+  const host = document.getElementById('collegeStats');
+  host.innerHTML = '';
+  host.appendChild(stat('green', c.in_pipeline, 'In pipeline', c.awaiting_review + ' awaiting your review'));
+  host.appendChild(stat('amber', c.docs_requested, 'Documents requested', c.docs_chased_7d + ' chased > 7 days'));
+  host.appendChild(stat('green', c.verified_this_month, 'Verified this month',
+    (c.verified_delta >= 0 ? '+' : '') + c.verified_delta + ' vs last month'));
+  host.appendChild(stat('red', c.expiring_certs, 'Expiring documents', 'within 30 days'));
+  // per-section pending badges on the sidebar
+  Object.keys(s.sections).forEach((k) => {
+    const badge = document.querySelector('#collegeNav [data-badge="' + k + '"]');
+    if (!badge) return;
+    const v = s.sections[k];
+    if (v > 0) { badge.style.display = ''; badge.textContent = String(v); } else { badge.style.display = 'none'; }
+  });
+}
 
 // ---- Phase 1: pipeline board ----
 async function loadPipeline() {
@@ -57,6 +79,7 @@ async function selectAgent(id) {
   ]);
   renderDossier(agent, audit);
   document.getElementById('dossier').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  loadSummary();
 }
 
 function renderDossier(a, audit) {
@@ -345,6 +368,7 @@ async function loadCollateral() {
     }
     host.appendChild(box);
   });
+  loadSummary();
 }
 
 // ---- Phase 3 ----
@@ -398,6 +422,7 @@ async function loadReconciliation() {
     el('b', { class: 'money', style: 'font-size:15px' }, [money(t.total_payable_amount)]),
   ]));
   host.appendChild(box);
+  loadSummary();
 }
 
 // ---- Step 4: offboarding ----
@@ -443,6 +468,7 @@ async function loadOffboarding() {
   }
   box.appendChild(b);
   host.appendChild(box);
+  loadSummary();
 }
 
 async function terminate(id, name) {
@@ -514,4 +540,5 @@ function labelEvent(e) {
   }
   chipHost.appendChild(userChip(me));
   loadPipeline();
+  loadSummary();
 })();

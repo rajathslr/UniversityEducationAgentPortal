@@ -24,11 +24,18 @@
     <p>Create and remove college officers and agent operators, and reset passwords. Passwords are stored as salted one-way hashes.</p>
   </div>
 
-  <div class="wrap">
-    <div class="grid-side">
-      <div>
+  <div class="appshell">
+    <aside class="sidebar" id="adminNav" aria-label="Admin sections">
+      <div class="side-h">Administration</div>
+      <a href="#" data-tab="agencies" class="active"><span class="ic">🏢</span>Agencies</a>
+      <a href="#" data-tab="users"><span class="ic">👤</span>Users</a>
+    </aside>
+    <main class="content">
+      <!-- AGENCIES -->
+      <section class="panel show" id="tab-agencies">
+        <div class="sec-head"><h2>Add an agency</h2><p>Creates the agency at the New application stage plus its agent login.</p></div>
         <div class="box">
-          <div class="box-h"><h3>Add an agency</h3><div class="spacer"></div>
+          <div class="box-h"><h3>New agency</h3><div class="spacer"></div>
             <button class="btn sm" id="fillSample" type="button">Fill sample</button></div>
           <div class="box-b">
             <div class="field"><label>Business name</label><input id="ag_business" type="text" /></div>
@@ -49,6 +56,13 @@
             <button class="btn primary block" id="createAgencyBtn">Create agency</button>
           </div>
         </div>
+      </section>
+
+      <!-- USERS -->
+      <section class="panel" id="tab-users">
+        <div class="sec-head"><h2>Users</h2><p>Create officers, agents and admins; reset passwords; remove accounts.</p></div>
+        <div class="grid-side">
+        <div>
         <div class="box">
           <div class="box-h"><h3>Add a user</h3></div>
           <div class="box-b">
@@ -70,10 +84,12 @@
         </div>
       </div>
       <div>
-        <div class="sec-head"><h2>Existing users</h2><p>Reset a password or remove an account.</p></div>
+        <div class="sec-head" style="margin-top:0"><h3 style="font-size:15px">Existing users</h3></div>
         <div class="box"><div id="userList"></div></div>
       </div>
-    </div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script src="/js/common.js"></script>

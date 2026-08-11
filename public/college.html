@@ -18,21 +18,19 @@
     <div id="userChip"></div>
   </nav>
 
-  <div class="hero">
-    <div class="eyebrow">College console</div>
-    <h1>Your education agents</h1>
-    <p>Review agent applications, keep marketing materials up to date, and check that each commission follows the rules before it is paid.</p>
-  </div>
+  <div class="appshell">
+    <aside class="sidebar" id="collegeNav" aria-label="Console sections">
+      <div class="side-h">Console</div>
+      <a href="#" data-phase="pipeline" class="active"><span class="ic">📥</span>Applications <span class="b" data-badge="pipeline" style="display:none"></span></a>
+      <a href="#" data-phase="collateral"><span class="ic">📁</span>Marketing materials <span class="b" data-badge="collateral" style="display:none"></span></a>
+      <a href="#" data-phase="reconciliation"><span class="ic">💷</span>Commission review <span class="b" data-badge="reconciliation" style="display:none"></span></a>
+      <a href="#" data-phase="offboarding"><span class="ic">📤</span>Offboarding <span class="b" data-badge="offboarding" style="display:none"></span></a>
+    </aside>
+    <main class="content">
+      <!-- live console dashboard -->
+      <div id="collegeStats" class="stat-row" style="margin-bottom:20px"></div>
 
-  <div class="tabs">
-    <a href="#" data-phase="pipeline" class="active">Step 1 · Applications</a>
-    <a href="#" data-phase="collateral">Step 2 · Marketing materials</a>
-    <a href="#" data-phase="reconciliation">Step 3 · Commission review</a>
-    <a href="#" data-phase="offboarding">Step 4 · Offboarding</a>
-  </div>
-
-  <div class="wrap">
-    <!-- STEP 1 -->
+      <!-- STEP 1 -->
     <section class="panel show" id="phase-pipeline">
       <div class="sec-head">
         <h2>Applications</h2>
@@ -62,6 +60,7 @@
         <p>Give an agent notice, wait for them to confirm it, then complete the offboarding. Their final commission statement stays available to them.</p></div>
       <div id="offboarding"></div>
     </section>
+    </main>
   </div>
 
   <script src="/js/common.js"></script>

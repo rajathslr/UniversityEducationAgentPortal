@@ -5,8 +5,21 @@
 //  - 1 invoice, 5 commission lines => 2 payable / 1 blocked / 1 frozen / 1 not-due.
 //  - Collateral: "2026 Fee Schedule" CURRENT v4 + SUPERSEDED v3, partial ack ledger.
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const { Client } = require('pg');
 const { hashPassword } = require('../src/auth');
+
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+// A tiny valid PDF used as a placeholder file for seeded documents, so they are
+// genuinely viewable and verifiable in the demo (not just metadata).
+const PLACEHOLDER_PDF = Buffer.from(
+  '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+  '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+  '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 320 120]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n' +
+  '4 0 obj<</Length 58>>stream\nBT /F1 14 Tf 24 60 Td (Sample compliance document) Tj ET\nendstream endobj\n' +
+  '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n' +
+  'trailer<</Root 1 0 R>>\n%%EOF', 'utf8');
 
 const url =
   process.env.DATABASE_URL ||
@@ -98,14 +111,23 @@ async function main() {
     // Compliance documents + referee checks
     // ---------------------------------------------------------------
     async function addDoc(agentId, doc_type, reference, expiry, verified) {
-      // Seeded docs are historical (no real file on disk); mark them as
-      // Verified or Uploaded so the request/upload UI shows them sensibly.
+      // Seeded docs get a real placeholder file on disk, so they are viewable
+      // and verifiable in the demo (not just metadata).
       const status = verified ? 'Verified' : 'Uploaded';
-      await db.query(
+      const id = (await db.query(
         `INSERT INTO agent_documents
            (agent_id, doc_type, reference, expiry_date, verified, status, requested_by, uploaded_at)
-         VALUES ($1,$2,$3,$4,$5,$6,'College Admin', now())`,
+         VALUES ($1,$2,$3,$4,$5,$6,'College Admin', now()) RETURNING id`,
         [agentId, doc_type, reference, expiry || null, verified || false, status]
+      )).rows[0].id;
+      const dir = path.join(UPLOAD_DIR, String(agentId));
+      fs.mkdirSync(dir, { recursive: true });
+      const stored = id + '-seed.pdf';
+      fs.writeFileSync(path.join(dir, stored), PLACEHOLDER_PDF);
+      const orig = doc_type.replace(/[^A-Za-z0-9]+/g, '_') + '.pdf';
+      await db.query(
+        `UPDATE agent_documents SET original_filename=$2, stored_filename=$3, mime_type='application/pdf', size_bytes=$4 WHERE id=$1`,
+        [id, orig, stored, PLACEHOLDER_PDF.length]
       );
     }
     async function addReferee(agentId, name, org, contact, status) {
@@ -116,30 +138,48 @@ async function main() {
       );
     }
 
+    // Date helper for realistic near-expiry certs (relative to today).
+    const daysFromNow = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
+    // A document the college has requested but the agent has not uploaded yet.
+    async function addRequestedDoc(agentId, doc_type, daysAgo) {
+      await db.query(
+        `INSERT INTO agent_documents (agent_id, doc_type, status, requested_by, requested_at)
+         VALUES ($1,$2,'Requested','College Admin', now() - ($3 * interval '1 day'))`,
+        [agentId, doc_type, daysAgo || 0]
+      );
+    }
+
     // Verified agent has a full, clean file.
     await addDoc(agents.globalReach, 'ASIC extract', 'ASIC-2026-55231', null, true);
     await addDoc(agents.globalReach, 'PIER cert', 'PIER-GR-4471', '2027-06-30', true);
     await addReferee(agents.globalReach, 'Univ. of Adelaide Intl Office', 'UoA', 'intl@uoa.example', 'Passed');
     await addReferee(agents.globalReach, 'RMIT Partnerships', 'RMIT', 'partners@rmit.example', 'Passed');
 
-    // Dual agent — note the MARN doc.
+    // Dual agent — note the MARN doc. QEAC cert expires soon (dashboard: expiring).
     await addDoc(agents.sunrise, 'ASIC extract', 'ASIC-2025-88120', null, true);
-    await addDoc(agents.sunrise, 'QEAC cert', 'QEAC-J1188', '2027-01-31', true);
+    await addDoc(agents.sunrise, 'QEAC cert', 'QEAC-J1188', daysFromNow(28), true);
     await addDoc(agents.sunrise, 'MARN', 'MARN-1793021', null, true);
     await addReferee(agents.sunrise, 'Deakin Recruitment', 'Deakin', 'rec@deakin.example', 'Passed');
     await addReferee(agents.sunrise, 'La Trobe Intl', 'La Trobe', 'intl@latrobe.example', 'Passed');
 
+    // Southern Cross PIER cert expires within 30 days (dashboard: expiring).
     await addDoc(agents.southernCross, 'ASIC extract', 'ASIC-2025-70044', null, true);
-    await addDoc(agents.southernCross, 'PIER cert', 'PIER-SC-2290', '2026-11-30', true);
+    await addDoc(agents.southernCross, 'PIER cert', 'PIER-SC-2290', daysFromNow(15), true);
     await addReferee(agents.southernCross, 'Monash Global', 'Monash', 'global@monash.example', 'Passed');
     await addReferee(agents.southernCross, 'UniSA Intl', 'UniSA', 'intl@unisa.example', 'Passed');
 
+    // Horizon PIER cert expires within 30 days (dashboard: expiring).
     await addDoc(agents.horizon, 'ASIC extract', 'ASIC-2026-10233', null, true);
-    await addDoc(agents.horizon, 'PIER cert', 'PIER-HZ-9001', '2027-03-31', false);
+    await addDoc(agents.horizon, 'PIER cert', 'PIER-HZ-9001', daysFromNow(25), false);
     await addReferee(agents.horizon, 'Griffith Intl', 'Griffith', 'intl@griffith.example', 'Pending');
+    // Horizon still owes a requested document.
+    await addRequestedDoc(agents.horizon, 'Insurance certificate', 3);
 
     await addDoc(agents.apex, 'ASIC extract', 'ASIC-2026-33501', null, false);
     await addReferee(agents.apex, 'QUT Partnerships', 'QUT', 'partners@qut.example', 'Pending');
+    // Apex has outstanding document requests — one chased for over a week.
+    await addRequestedDoc(agents.apex, 'PIER/QEAC certificate', 10);
+    await addRequestedDoc(agents.apex, 'Police check', 2);
 
     // ---------------------------------------------------------------
     // Agreements for already-approved agents
@@ -169,6 +209,20 @@ async function main() {
     await audit(agents.globalReach, 'STAGE_CHANGE', 'Docs Requested -> Verified', 'College Admin', '2026-07-08T01:00:00Z');
     await audit(agents.sunrise, 'APPROVED', 'Application approved. Agreement created.', 'College Admin', '2026-02-12T04:00:00Z');
     await audit(agents.southernCross, 'APPROVED', 'Application approved. Agreement created.', 'College Admin', '2026-01-20T02:30:00Z');
+
+    // Document checks — drives the "Verified this month (+N vs last month)" card.
+    const lastMonth = (() => { const x = new Date(); x.setMonth(x.getMonth() - 1); x.setDate(15); return x.toISOString(); })();
+    const checkedThisMonth = [
+      [agents.globalReach, 'ASIC extract'], [agents.globalReach, 'PIER cert'],
+      [agents.southernCross, 'ASIC extract'], [agents.southernCross, 'PIER cert'],
+      [agents.sunrise, 'ASIC extract'], [agents.sunrise, 'QEAC cert'],
+    ];
+    for (const [ag, dt] of checkedThisMonth) await audit(ag, 'DOC_VERIFIED', `Checked ${dt}.`, 'officer', null);
+    const checkedLastMonth = [
+      [agents.globalReach, 'ASIC extract'], [agents.southernCross, 'ASIC extract'],
+      [agents.sunrise, 'ASIC extract'], [agents.sunrise, 'QEAC cert'],
+    ];
+    for (const [ag, dt] of checkedLastMonth) await audit(ag, 'DOC_VERIFIED', `Checked ${dt}.`, 'officer', lastMonth);
 
     // ---------------------------------------------------------------
     // Collateral repository + acknowledgment ledger

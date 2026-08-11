@@ -8,6 +8,16 @@ async function init() {
   if (!me) return;
   document.getElementById('userChip').appendChild(userChip(me));
 
+  // Sidebar section switching.
+  document.querySelector('#adminNav').addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-tab]');
+    if (!a) return;
+    e.preventDefault();
+    document.querySelectorAll('#adminNav a').forEach((x) => x.classList.toggle('active', x === a));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('show'));
+    document.getElementById('tab-' + a.dataset.tab).classList.add('show');
+  });
+
   // Populate agency dropdown (admins may read the agent list).
   const agents = await getJSON('/api/agents');
   const sel = document.getElementById('agentId');
