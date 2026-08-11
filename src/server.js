@@ -124,7 +124,8 @@ app.post('/api/client-logs', (req, res) => {
 app.post('/api/referee-callback', wrap(async (req, res) => {
   const token = String((req.body && req.body.token) || '').trim();
   if (!token) return res.status(400).json({ error: 'Missing token.' });
-  const passed = req.body.passed === true || req.body.passed === 'true';
+  // Workflow #2's decision field is a Select with exactly these two options.
+  const passed = req.body.passed === 'Approve Agent';
   const notes = (req.body && req.body.notes) || null;
   const r = (await db.query(
     `UPDATE referee_checks SET status=$2, notes=$3, callback_token=NULL
