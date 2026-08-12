@@ -15,46 +15,51 @@
     @media (max-width:860px){.auth-shell{grid-template-columns:1fr}}
 
     /* ---- Left: brand / orientation panel ---- */
-    .auth-brand-panel{position:relative;overflow:hidden;background:linear-gradient(150deg,var(--teal),var(--teal-deep));
-      color:#fff;padding:44px 44px;display:flex;flex-direction:column;justify-content:space-between}
-    @media (max-width:860px){.auth-brand-panel{padding:32px 28px 40px}}
+    .auth-brand-panel{position:relative;overflow:hidden;padding:44px;display:flex;flex-direction:column;
+      justify-content:space-between;border-right:1px solid var(--color-divider);
+      background:radial-gradient(120% 90% at 15% 0%, var(--color-accent-900), var(--color-bg) 62%)}
+    @media (max-width:860px){.auth-brand-panel{padding:32px 28px 40px;border-right:0;
+      border-bottom:1px solid var(--color-divider)}}
     .auth-brand-panel::before{content:"";position:absolute;right:-120px;top:-120px;width:420px;height:420px;
-      border-radius:50%;border:1px solid rgba(255,255,255,.14);pointer-events:none}
+      border-radius:50%;border:1px solid var(--color-accent-800);pointer-events:none}
     .auth-brand-panel::after{content:"";position:absolute;right:-40px;bottom:-160px;width:340px;height:340px;
-      border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.06), transparent 70%);pointer-events:none}
+      border-radius:50%;background:radial-gradient(circle, var(--color-accent-900), transparent 70%);pointer-events:none}
     .auth-org{display:flex;align-items:center;gap:12px;position:relative}
-    .auth-org .crest{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.12);
-      border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-weight:600;
-      font-size:14px;font-family:var(--font-heading);flex:none}
-    .auth-org b{font-family:var(--font-heading);font-size:15px;display:block}
-    .auth-org small{font-variant-numeric:tabular-nums;font-size:11.5px;color:rgba(255,255,255,.68);display:block;margin-top:2px}
+    .auth-org .crest{width:44px;height:44px;border-radius:10px;background:transparent;
+      border:1px solid var(--color-accent);display:grid;place-items:center;color:var(--color-accent);
+      font-weight:600;font-size:14px;font-family:var(--font-heading);flex:none}
+    .auth-org b{font-family:var(--font-heading);font-weight:600;font-size:15px;display:block}
+    .auth-org small{font-variant-numeric:tabular-nums;font-size:11px;letter-spacing:.06em;
+      color:var(--color-neutral-500);display:block;margin-top:2px}
 
     .auth-lede{position:relative;max-width:420px}
-    .auth-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);
-      font-weight:500;margin-bottom:12px}
-    .auth-lede h1{font-family:var(--font-heading);font-weight:500;font-size:30px;line-height:1.2;letter-spacing:-.015em;margin:0 0 12px}
-    .auth-lede p{font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.82);margin:0}
+    .auth-eyebrow{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent);
+      font-weight:600;margin-bottom:12px}
+    .auth-lede h1{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:32px;
+      line-height:1.12;letter-spacing:-.015em;margin:0 0 12px}
+    .auth-lede p{font-size:14.5px;line-height:1.6;color:var(--color-neutral-400);margin:0}
 
     .auth-tags{position:relative;display:flex;gap:8px;flex-wrap:wrap}
-    .auth-tags .tag{font-variant-numeric:tabular-nums;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);
-      border:1px solid rgba(255,255,255,.28);border-radius:20px;padding:4px 11px}
+    .auth-tags .tag{font-size:11px;letter-spacing:.02em;color:var(--color-accent);
+      border:1px solid var(--color-accent);border-radius:calc(var(--radius-md) * 0.75);padding:3px 10px}
 
     /* ---- Right: form panel ---- */
-    .auth-form-panel{display:flex;align-items:center;justify-content:center;padding:24px;background:var(--paper)}
+    .auth-form-panel{display:flex;align-items:center;justify-content:center;padding:24px;background:var(--color-bg)}
     .auth-card{width:100%;max-width:380px}
     .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
-    .auth-brand .mark{width:32px;height:32px;border-radius:8px;background:linear-gradient(150deg,var(--teal),var(--teal-deep));
-      display:grid;place-items:center;color:#fff;font-weight:600;font-size:15px;font-family:var(--font-heading);}
-    .auth-brand b{font-family:var(--font-heading);font-size:15px}
-    .auth-card h1{font-family:var(--font-heading);font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
-    .auth-card .sub{color:var(--muted);font-size:13.5px;margin:0 0 22px}
+    .auth-brand .mark{width:32px;height:32px;border-radius:8px;background:transparent;
+      border:1px solid var(--color-accent);display:grid;place-items:center;color:var(--color-accent);
+      font-weight:600;font-size:15px;font-family:var(--font-heading)}
+    .auth-brand b{font-family:var(--font-heading);font-weight:600;font-size:15px}
+    .auth-card h1{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:25px;
+      margin:0 0 4px;letter-spacing:-.015em;line-height:1.12}
+    .auth-card .sub{color:var(--muted-2);font-size:13.5px;margin:0 0 22px}
     .auth-card .field{margin-bottom:14px}
-    .auth-err{display:none;background:var(--red-soft);color:var(--red);border:1px solid var(--red);
-      border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:14px}
+    .auth-err{display:none}
     .auth-err.show{display:block}
-    .applylink{margin:16px 0 0;font-size:12.5px;color:var(--muted);text-align:center}
-    .applylink a{color:var(--teal);font-weight:600}
-    .tlsnote{margin-top:18px;font-size:11.5px;color:var(--muted-2);display:flex;gap:7px;align-items:flex-start}
+    .applylink{margin:16px 0 0;font-size:12.5px;color:var(--muted-2);text-align:center}
+    .applylink a{color:var(--color-accent);font-weight:500}
+    .tlsnote{margin-top:18px;font-size:11.5px;color:var(--color-neutral-600);display:flex;gap:7px;align-items:flex-start}
   </style>
 </head>
 <body>

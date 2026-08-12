@@ -74,9 +74,45 @@ function renderHeader(a) {
 }
 
 // ---- My application ----
+// Jump to another tab the same way clicking the nav does.
+function goTab(name) {
+  const link = document.querySelector('#agentNav a[data-tab="' + name + '"]');
+  if (link) link.click();
+}
+
+// Outstanding items that block the agent, surfaced where they land first.
+// Both conditions are already computed elsewhere — nothing new is fetched.
+function nextActions(a) {
+  const items = [];
+  if (a.coi_frozen) items.push({
+    icon: 'ph-pause-circle', title: 'Sign your conflict-of-interest form',
+    sub: 'Your students are on hold and commission is held until you sign.',
+    label: 'Go to Commissions', act: () => goTab('commissions'),
+  });
+  const outstanding = collateralOutstanding(a, cache.collateral);
+  if (outstanding > 0) items.push({
+    icon: 'ph-files',
+    title: outstanding === 1 ? 'A marketing file needs confirming'
+      : outstanding + ' marketing files need confirming',
+    sub: 'Confirm you have deleted the old version and use only the current one.',
+    label: 'Go to Marketing', act: () => goTab('collateral'),
+  });
+  if (!items.length) return null;
+  const wrap = el('div', { class: 'nextacts' });
+  items.forEach((it) => wrap.appendChild(el('div', { class: 'nextact' }, [
+    el('i', { class: 'ph ' + it.icon }),
+    el('div', { class: 'na-t' }, [it.title]),
+    el('div', { class: 'na-s' }, [it.sub]),
+    el('button', { class: 'btn sm', onclick: it.act }, [it.label]),
+  ])));
+  return wrap;
+}
+
 function renderApplication(a) {
   const host = document.getElementById('tab-application');
   host.innerHTML = '';
+  const na = nextActions(a);
+  if (na) host.appendChild(na);
   const grid = el('div', { class: 'grid-2' });
 
   // Requested documents — upload one real file per request

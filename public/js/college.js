@@ -180,7 +180,7 @@ function renderDossier(a, audit) {
       'Reason: ' + (a.decision_reason || '—')));
   }
 
-  const cols = el('div', { class: 'grid-2', style: 'margin-top:16px' });
+  const cols = el('div', { class: 'grid-dossier', style: 'margin-top:16px' });
 
   // --- Left: documents + review actions ---
   const left = el('div');
@@ -243,12 +243,14 @@ function renderDossier(a, audit) {
   // --- Right: review actions + agreement + audit ---
   const right = el('div');
 
-  // Review actions box (drives the flow)
-  const actBox = el('div', { class: 'box' }, [el('div', { class: 'box-h' }, [el('h3', {}, ['Review actions'])])]);
-  const actBody = el('div', { class: 'box-b' });
-  actBody.appendChild(el('p', { style: 'margin:0 0 12px;font-size:12.5px;color:var(--muted)' }, [nextStepHint(a)]));
-  actBody.appendChild(stageActions(a));
-  actBox.appendChild(actBody);
+  // Decision card — accent-tinted, the one thing the officer is here to do.
+  const actBox = el('div', { class: 'box accent' }, [
+    el('div', { class: 'box-b' }, [
+      el('div', { class: 'decision-k' }, [a.decision ? 'Decision' : 'Next step']),
+      el('p', { class: 'decision-p' }, [nextStepHint(a)]),
+      stageActions(a),
+    ]),
+  ]);
   right.appendChild(actBox);
 
   // Agreement
@@ -304,10 +306,13 @@ function stageActions(a) {
     case 'Docs Requested':
       wrap.appendChild(mk('Documents received — mark checks complete', 'primary', () => advance(a.id, 'Verified', 'Requested documents received and checked')));
       break;
-    case 'Verified':
-      wrap.appendChild(mk('✓ Approve', 'primary', () => approve(a.id)));
-      wrap.appendChild(mk('✗ Reject with reason', 'danger', () => reject(a.id)));
+    case 'Verified': {
+      const ok = mk('Approve', 'primary', () => approve(a.id));
+      ok.prepend(el('i', { class: 'ph ph-check-circle' }));
+      wrap.appendChild(ok);
+      wrap.appendChild(mk('Reject', 'danger', () => reject(a.id)));
       break;
+    }
   }
   return wrap;
 }

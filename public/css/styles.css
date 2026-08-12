@@ -308,6 +308,20 @@ textarea,textarea.input{min-height:90px;resize:vertical}
 .pcard .cardchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:auto;padding-top:8px}
 .empty-col{font-size:11.5px;color:var(--muted-2);font-style:italic;text-align:center;padding:8px 0}
 
+/* ---------- Agent "next actions" pair ---------- */
+.nextacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:18px}
+.nextact{background:var(--color-surface);border-radius:var(--radius-md);padding:14px 16px;
+  box-shadow:0 0 0 1px var(--warn);border-left:2px solid var(--warn);display:flex;flex-direction:column;gap:2px}
+.nextact > i{color:var(--warn-tx);font-size:18px;margin-bottom:4px}
+.nextact .na-t{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:14px;color:var(--warn-tx)}
+.nextact .na-s{font-size:12.5px;color:var(--muted-2);line-height:1.45;margin-bottom:10px}
+.nextact .btn{align-self:flex-start;margin-top:auto}
+
+/* ---------- Decision card (dossier, right column) ---------- */
+.decision-k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent);font-weight:600}
+.decision-p{font-size:13px;color:var(--color-neutral-300);line-height:1.5;margin:4px 0 10px}
+.box.accent .actions .btn.primary{flex:1}
+
 /* ---------- "Needs your attention" inbox ---------- */
 .inbox{margin-bottom:22px}
 .inbox-h{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--color-divider)}
