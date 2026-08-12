@@ -4,9 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin — Meridian AMS</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/nocturne.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -27,9 +28,9 @@
   <div class="appshell">
     <aside class="sidebar" id="adminNav" aria-label="Admin sections">
       <div class="side-h">Administration</div>
-      <a href="#" data-tab="applications" class="active"><span class="ic">📨</span>Applications <span class="b" id="appsBadge" style="display:none"></span></a>
-      <a href="#" data-tab="agencies"><span class="ic">🏢</span>Agencies</a>
-      <a href="#" data-tab="users"><span class="ic">👤</span>Users</a>
+      <a href="#" data-tab="applications" class="active"><i class="ic ph-fill ph-tray"></i>Applications <span class="b" id="appsBadge" style="display:none"></span></a>
+      <a href="#" data-tab="agencies"><i class="ic ph ph-buildings"></i>Agencies</a>
+      <a href="#" data-tab="users"><i class="ic ph ph-users"></i>Users</a>
     </aside>
     <main class="content">
       <!-- APPLICATIONS -->

@@ -130,6 +130,110 @@ function toast(msg, kind) {
   _toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
 }
 
+// ---------------------------------------------------------------
+// Modal dialog — replaces window.confirm/prompt/alert everywhere.
+// Resolves with `false` if cancelled, otherwise an object of field
+// values keyed by field name ({} when there are no fields), so a
+// plain confirm reads as `if (!await openDialog(...)) return;`.
+//
+// Class names (.dialog-backdrop/.dialog/.dialog-title/.dialog-body/
+// .dialog-actions) match the Nocturne design system so the DS
+// stylesheet can take them over without touching this code.
+// ---------------------------------------------------------------
+function openDialog(opts) {
+  const o = opts || {};
+  const fields = o.fields || [];
+  return new Promise((resolve) => {
+    const lastFocused = document.activeElement;
+    let settled = false;
+
+    const inputs = fields.map((f) => {
+      const common = { id: 'dlg_' + f.name, class: 'input' };
+      if (f.placeholder) common.placeholder = f.placeholder;
+      const node = f.type === 'textarea'
+        ? el('textarea', { ...common, rows: String(f.rows || 3) })
+        : el('input', { ...common, type: f.type || 'text' });
+      if (f.value != null) node.value = f.value;
+      return { f, node };
+    });
+
+    const errBox = el('div', { class: 'dialog-err', style: 'display:none' });
+
+    const confirmBtn = el('button', {
+      type: 'button',
+      class: 'btn primary' + (o.danger ? ' danger' : ''),
+    }, [o.confirmLabel || 'Confirm']);
+    const cancelBtn = el('button', { type: 'button', class: 'btn' }, [o.cancelLabel || 'Cancel']);
+
+    const dialog = el('div', {
+      class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title',
+    }, [
+      el('div', { class: 'dialog-title', id: 'dialog-title' }, [o.title || 'Confirm']),
+      el('div', { class: 'dialog-body' }, [
+        o.body ? el('p', {}, [o.body]) : null,
+        errBox,
+        ...inputs.map(({ f, node }) => el('div', { class: 'field' }, [
+          f.label ? el('label', { for: 'dlg_' + f.name }, [f.label]) : null,
+          node,
+          f.hint ? el('div', { class: 'dialog-hint' }, [f.hint]) : null,
+        ])),
+      ]),
+      el('div', { class: 'dialog-actions' }, [cancelBtn, confirmBtn]),
+    ]);
+    const backdrop = el('div', { class: 'dialog-backdrop' }, [dialog]);
+
+    function close(result) {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('keydown', onKey, true);
+      backdrop.remove();
+      if (lastFocused && lastFocused.focus) lastFocused.focus();
+      resolve(result);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(false); return; }
+      if (e.key !== 'Tab') return;
+      // Keep focus inside the dialog while it is open.
+      const focusable = dialog.querySelectorAll('input,textarea,select,button,[href],[tabindex]:not([tabindex="-1"])');
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    function submit() {
+      const out = {};
+      for (const { f, node } of inputs) {
+        const v = (node.value || '').trim();
+        if (f.required && !v) {
+          errBox.textContent = (f.label || 'This field') + ' is required.';
+          errBox.style.display = '';
+          node.focus();
+          return;
+        }
+        if (f.validate) {
+          const msg = f.validate(v);
+          if (msg) { errBox.textContent = msg; errBox.style.display = ''; node.focus(); return; }
+        }
+        out[f.name] = v;
+      }
+      close(out);
+    }
+
+    confirmBtn.addEventListener('click', submit);
+    cancelBtn.addEventListener('click', () => close(false));
+    backdrop.addEventListener('mousedown', (e) => { if (e.target === backdrop) close(false); });
+    // Enter submits from single-line inputs (not textareas, where it means newline).
+    dialog.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); submit(); }
+    });
+    document.addEventListener('keydown', onKey, true);
+
+    document.body.appendChild(backdrop);
+    (inputs.length ? inputs[0].node : confirmBtn).focus();
+  });
+}
+
 // Commission status -> {label, chip class, row class}. Keys are the API contract
 // (do not change); only the labels are user-facing plain language.
 const STATUS_META = {

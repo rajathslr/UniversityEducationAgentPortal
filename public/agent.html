@@ -4,9 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Meridian Agent Portal</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/nocturne.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -28,11 +29,11 @@
   <div class="appshell">
     <aside class="sidebar" id="agentNav" aria-label="Agent navigation">
       <div class="side-h">Menu</div>
-      <a href="#" data-tab="application" class="active"><span class="ic">📄</span>My application</a>
-      <a href="#" data-tab="collateral"><span class="ic">📁</span>Marketing materials <span class="b" id="ackBadge" style="display:none"></span></a>
-      <a href="#" data-tab="students"><span class="ic">🎓</span>My students</a>
-      <a href="#" data-tab="commissions"><span class="ic">💷</span>Commissions</a>
-      <a href="#" data-tab="account"><span class="ic">⚙</span>Account</a>
+      <a href="#" data-tab="application" class="active"><i class="ic ph-fill ph-identification-card"></i>My application</a>
+      <a href="#" data-tab="collateral"><i class="ic ph ph-files"></i>Marketing materials <span class="b" id="ackBadge" style="display:none"></span></a>
+      <a href="#" data-tab="students"><i class="ic ph ph-student"></i>My students</a>
+      <a href="#" data-tab="commissions"><i class="ic ph ph-scales"></i>Commissions</a>
+      <a href="#" data-tab="account"><i class="ic ph ph-gear"></i>Account</a>
     </aside>
     <main class="content">
       <section class="panel show" id="tab-application"></section>

@@ -4,9 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sign in — Meridian AMS</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/nocturne.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
     html,body{height:100%}
@@ -23,19 +24,19 @@
       border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.06), transparent 70%);pointer-events:none}
     .auth-org{display:flex;align-items:center;gap:12px;position:relative}
     .auth-org .crest{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.12);
-      border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-weight:800;
-      font-size:14px;font-family:"Archivo";flex:none}
-    .auth-org b{font-family:"Archivo";font-size:15px;display:block}
-    .auth-org small{font-family:"IBM Plex Mono";font-size:11.5px;color:rgba(255,255,255,.68);display:block;margin-top:2px}
+      border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-weight:600;
+      font-size:14px;font-family:var(--font-heading);flex:none}
+    .auth-org b{font-family:var(--font-heading);font-size:15px;display:block}
+    .auth-org small{font-variant-numeric:tabular-nums;font-size:11.5px;color:rgba(255,255,255,.68);display:block;margin-top:2px}
 
     .auth-lede{position:relative;max-width:420px}
     .auth-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);
-      font-weight:700;margin-bottom:12px}
-    .auth-lede h1{font-family:"Archivo";font-weight:700;font-size:30px;line-height:1.2;letter-spacing:-.015em;margin:0 0 12px}
+      font-weight:500;margin-bottom:12px}
+    .auth-lede h1{font-family:var(--font-heading);font-weight:500;font-size:30px;line-height:1.2;letter-spacing:-.015em;margin:0 0 12px}
     .auth-lede p{font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.82);margin:0}
 
     .auth-tags{position:relative;display:flex;gap:8px;flex-wrap:wrap}
-    .auth-tags .tag{font-family:"IBM Plex Mono";font-size:11px;font-weight:600;color:rgba(255,255,255,.85);
+    .auth-tags .tag{font-variant-numeric:tabular-nums;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);
       border:1px solid rgba(255,255,255,.28);border-radius:20px;padding:4px 11px}
 
     /* ---- Right: form panel ---- */
@@ -43,9 +44,9 @@
     .auth-card{width:100%;max-width:380px}
     .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
     .auth-brand .mark{width:32px;height:32px;border-radius:8px;background:linear-gradient(150deg,var(--teal),var(--teal-deep));
-      display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;font-family:"Archivo"}
-    .auth-brand b{font-family:"Archivo";font-size:15px}
-    .auth-card h1{font-family:"Archivo";font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
+      display:grid;place-items:center;color:#fff;font-weight:600;font-size:15px;font-family:var(--font-heading);}
+    .auth-brand b{font-family:var(--font-heading);font-size:15px}
+    .auth-card h1{font-family:var(--font-heading);font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
     .auth-card .sub{color:var(--muted);font-size:13.5px;margin:0 0 22px}
     .auth-card .field{margin-bottom:14px}
     .auth-err{display:none;background:var(--red-soft);color:var(--red);border:1px solid var(--red);

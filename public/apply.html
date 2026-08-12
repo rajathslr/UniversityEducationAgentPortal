@@ -4,9 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Apply to partner — Meridian University</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/nocturne.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
     .apply-top{background:linear-gradient(150deg,var(--teal),var(--teal-deep));color:#fff;
@@ -16,23 +17,23 @@
     .apply-top .inner{max-width:820px;margin:0 auto;position:relative}
     .apply-org{display:flex;align-items:center;gap:11px;margin-bottom:22px}
     .apply-org .crest{width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,.12);
-      border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-weight:800;
-      font-size:13px;font-family:"Archivo";flex:none}
-    .apply-org b{font-family:"Archivo";font-size:14.5px;display:block}
-    .apply-org small{font-family:"IBM Plex Mono";font-size:11px;color:rgba(255,255,255,.68);display:block;margin-top:2px}
-    .apply-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);font-weight:700}
-    .apply-top h1{font-family:"Archivo";font-weight:700;font-size:27px;letter-spacing:-.02em;margin:9px 0 10px}
+      border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-weight:600;
+      font-size:13px;font-family:var(--font-heading);flex:none}
+    .apply-org b{font-family:var(--font-heading);font-size:14.5px;display:block}
+    .apply-org small{font-variant-numeric:tabular-nums;font-size:11px;color:rgba(255,255,255,.68);display:block;margin-top:2px}
+    .apply-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);font-weight:500}
+    .apply-top h1{font-family:var(--font-heading);font-weight:500;font-size:27px;letter-spacing:-.02em;margin:9px 0 10px}
     .apply-top p{font-size:14px;line-height:1.6;color:rgba(255,255,255,.85);margin:0;max-width:620px}
 
     .apply-wrap{max-width:820px;margin:0 auto;padding:24px 30px 70px}
-    .req{color:var(--red);font-weight:700}
+    .req{color:var(--red);font-weight:500}
     .apply-done{display:none}
     .apply-done.show{display:block}
     .apply-form.hide{display:none}
     .done-card{text-align:center;padding:36px 24px}
     .done-card .tick{width:52px;height:52px;border-radius:50%;background:var(--green-soft);color:var(--green);
       display:grid;place-items:center;font-size:25px;margin:0 auto 16px}
-    .done-card h2{font-family:"Archivo";font-size:20px;margin:0 0 8px}
+    .done-card h2{font-family:var(--font-heading);font-size:20px;margin:0 0 8px}
     .done-card p{color:var(--muted);font-size:13.5px;margin:0 auto;max-width:430px;line-height:1.6}
     .apply-foot{text-align:center;margin-top:20px;font-size:12.5px;color:var(--muted)}
     .apply-foot a{color:var(--teal);font-weight:600}

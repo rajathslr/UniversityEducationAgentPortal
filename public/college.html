@@ -4,9 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Meridian — College Console</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/nocturne.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -21,10 +22,14 @@
   <div class="appshell">
     <aside class="sidebar" id="collegeNav" aria-label="Console sections">
       <div class="side-h">Console</div>
-      <a href="#" data-phase="pipeline" class="active"><span class="ic">📥</span>Applications <span class="b" data-badge="pipeline" style="display:none"></span></a>
-      <a href="#" data-phase="collateral"><span class="ic">📁</span>Marketing materials <span class="b" data-badge="collateral" style="display:none"></span></a>
-      <a href="#" data-phase="reconciliation"><span class="ic">💷</span>Commission review <span class="b" data-badge="reconciliation" style="display:none"></span></a>
-      <a href="#" data-phase="offboarding"><span class="ic">📤</span>Offboarding <span class="b" data-badge="offboarding" style="display:none"></span></a>
+      <a href="#" data-phase="pipeline" class="active"><i class="ic ph-fill ph-tray"></i>Applications <span class="b" data-badge="pipeline" style="display:none"></span></a>
+      <a href="#" data-phase="collateral"><i class="ic ph ph-files"></i>Marketing materials <span class="b" data-badge="collateral" style="display:none"></span></a>
+      <a href="#" data-phase="reconciliation"><i class="ic ph ph-scales"></i>Commission review <span class="b" data-badge="reconciliation" style="display:none"></span></a>
+      <a href="#" data-phase="offboarding"><i class="ic ph ph-sign-out"></i>Offboarding <span class="b" data-badge="offboarding" style="display:none"></span></a>
+      <div class="sidebar-foot">
+        <div class="sf"><i class="ph ph-shield-check"></i>
+          <span>Every action here is written to an immutable audit trail.</span></div>
+      </div>
     </aside>
     <main class="content">
       <!-- live console dashboard -->
@@ -36,6 +41,7 @@
         <h2>Applications</h2>
         <p>New → In review → Documents requested → Checks done → Decision. Click an agency to review.</p>
       </div>
+      <div id="actionInbox"></div>
       <div id="pipeline" class="pipeline"></div>
       <div id="dossier" style="margin-top:18px"></div>
     </section>

@@ -398,7 +398,13 @@ async function uploadDocFile(agentId, docId, file) {
   } catch (e) { toast('Upload failed: ' + e.message, 'err'); }
 }
 async function deleteDocFile(agentId, docId) {
-  if (!confirm('Delete this uploaded file? You can upload a new one afterwards.')) return;
+  const ok = await openDialog({
+    title: 'Delete this file',
+    body: 'You can upload a new one afterwards.',
+    confirmLabel: 'Delete file',
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await api('DELETE', '/api/agents/' + agentId + '/documents/' + docId + '/file');
     toast('File removed.', 'ok');
@@ -412,6 +418,13 @@ function fmtBytes(n) {
   return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 async function acknowledge(versionId, id) {
+  // This is a compliance attestation, so make the agent state it deliberately.
+  const ok = await openDialog({
+    title: 'Confirm you are using the current version',
+    body: 'You are confirming you have deleted the old file and will only use the current version with students. This is recorded against your agency.',
+    confirmLabel: 'I have deleted the old version',
+  });
+  if (!ok) return;
   try {
     const r = await postJSON('/api/collateral/' + versionId + '/acknowledge', { agentId: id });
     toast(r.already_acknowledged ? 'Already confirmed.' : 'Confirmation saved.', 'ok');
@@ -419,7 +432,12 @@ async function acknowledge(versionId, id) {
   } catch (e) { toast('Could not confirm: ' + e.message, 'err'); }
 }
 async function signCOI(id) {
-  if (!confirm('Sign the conflict-of-interest form? This takes your students off hold and lets your commission be paid.')) return;
+  const ok = await openDialog({
+    title: 'Sign the conflict-of-interest form',
+    body: 'This takes your students off hold and lets your commission be paid. Your signature is recorded with today’s date.',
+    confirmLabel: 'Sign the form',
+  });
+  if (!ok) return;
   try {
     await postJSON('/api/coi/' + id + '/sign');
     toast('Form signed — your students are active again.', 'ok');

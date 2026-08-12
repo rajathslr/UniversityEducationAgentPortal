@@ -152,8 +152,13 @@ function applicationCard(a) {
 async function approveApplication(a, username, password) {
   if (!username) { toast('Enter a username for their login.', 'err'); return; }
   if ((password || '').length < 8) { toast('Password must be at least 8 characters.', 'err'); return; }
-  if (!confirm('Approve “' + a.business_name + '”?\n\nThis creates the agency at the New stage, issues the login "'
-    + username + '", and requests their onboarding documents.')) return;
+  const ok = await openDialog({
+    title: 'Approve ' + a.business_name,
+    body: 'This creates the agency at the New stage, issues the login “' + username
+      + '”, and requests their onboarding documents.',
+    confirmLabel: 'Approve & create agency',
+  });
+  if (!ok) return;
   try {
     const r = await postJSON('/api/admin/applications/' + a.id + '/approve', { username, password });
     toast('Approved — “' + r.agent.business_name + '” created with login “' + r.user.username + '”.', 'ok');
@@ -165,11 +170,17 @@ async function approveApplication(a, username, password) {
 }
 
 async function rejectApplication(a) {
-  const reason = prompt('Why is “' + a.business_name + '” being rejected?\n(Kept on the record.)');
-  if (reason === null) return;
-  if (!reason.trim()) { toast('A reason is required.', 'err'); return; }
+  const res = await openDialog({
+    title: 'Reject ' + a.business_name,
+    body: 'The reason is kept on the record.',
+    fields: [{ name: 'reason', label: 'Reason', type: 'textarea', required: true,
+      placeholder: 'Why is this application not going ahead?' }],
+    confirmLabel: 'Reject application',
+    danger: true,
+  });
+  if (!res) return;
   try {
-    await postJSON('/api/admin/applications/' + a.id + '/reject', { reason: reason.trim() });
+    await postJSON('/api/admin/applications/' + a.id + '/reject', { reason: res.reason });
     toast('Application rejected.', 'ok');
     await loadApplications();
   } catch (e) { toast(e.message, 'err'); }
@@ -281,17 +292,29 @@ async function addUser() {
 }
 
 async function resetPw(u) {
-  const pw = prompt('New password for @' + u.username + ' (min 8 chars):');
-  if (pw === null) return;
-  if (pw.length < 8) { toast('Password must be at least 8 characters.', 'err'); return; }
+  const res = await openDialog({
+    title: 'Reset password for @' + u.username,
+    body: 'They are signed out of any active sessions and will need the new password to sign back in.',
+    fields: [{ name: 'password', label: 'New password', type: 'text', required: true,
+      placeholder: 'At least 8 characters',
+      validate: (v) => (v.length >= 8 ? null : 'Password must be at least 8 characters.') }],
+    confirmLabel: 'Reset password',
+  });
+  if (!res) return;
   try {
-    await postJSON('/api/admin/users/' + u.id + '/reset-password', { password: pw });
+    await postJSON('/api/admin/users/' + u.id + '/reset-password', { password: res.password });
     toast('Password reset. Their active sessions were signed out.', 'ok');
   } catch (e) { toast(e.message, 'err'); }
 }
 
 async function removeUser(u) {
-  if (!confirm('Delete user @' + u.username + '? This cannot be undone.')) return;
+  const ok = await openDialog({
+    title: 'Delete @' + u.username,
+    body: 'This cannot be undone.',
+    confirmLabel: 'Delete user',
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await api('DELETE', '/api/admin/users/' + u.id);
     toast('User deleted.', 'ok');

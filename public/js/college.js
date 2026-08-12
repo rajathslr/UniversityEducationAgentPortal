@@ -19,9 +19,11 @@ document.querySelector('#collegeNav').addEventListener('click', (e) => {
 });
 
 // ---- Live console dashboard (cards + per-section pending badges) ----
+let lastSummary = null;
 async function loadSummary() {
   let s;
   try { s = await getJSON('/api/college/summary'); } catch (e) { return; }
+  lastSummary = s;
   const c = s.cards;
   const host = document.getElementById('collegeStats');
   host.innerHTML = '';
@@ -42,9 +44,60 @@ async function loadSummary() {
   });
 }
 
+// ---- "Needs your attention" inbox ----
+// Derived entirely from the agent list we already fetch for the board plus
+// the summary counts — no new endpoints, no new data.
+function renderActionInbox(agents, summary) {
+  const host = document.getElementById('actionInbox');
+  if (!host) return;
+  host.innerHTML = '';
+
+  const items = [];
+  agents.filter((a) => a.stage === 'Verified' && !a.decision).forEach((a) => items.push({
+    icon: 'ph-check-circle', tone: 'accent',
+    title: a.business_name + ' is ready for a decision',
+    sub: 'All checks complete — approve or reject to close it out.',
+    label: 'Review', primary: true, act: () => selectAgent(a.id),
+  }));
+  agents.filter((a) => a.coi_frozen).forEach((a) => items.push({
+    icon: 'ph-pause-circle', tone: 'warn',
+    title: a.business_name + ' — students on hold',
+    sub: 'Dual agent · conflict-of-interest form unsigned.',
+    label: 'Open', act: () => selectAgent(a.id),
+  }));
+  const chased = summary && summary.cards ? summary.cards.docs_chased_7d : 0;
+  if (chased > 0) {
+    items.push({
+      icon: 'ph-clock-countdown', tone: 'warn',
+      title: chased + ' document request' + (chased === 1 ? '' : 's') + ' unanswered for over a week',
+      sub: 'Agents have not uploaded what was asked for.',
+      label: 'See applications',
+      act: () => { const a = agents.find((x) => x.stage === 'Docs Requested'); if (a) selectAgent(a.id); },
+    });
+  }
+
+  if (!items.length) return; // nothing outstanding — don't show an empty card
+  const head = el('div', { class: 'inbox-h' }, [
+    el('i', { class: 'ph-fill ph-lightning' }),
+    el('span', { class: 'inbox-t' }, ['Needs your attention']),
+    chip(items.length + ' item' + (items.length === 1 ? '' : 's'), 'grey'),
+  ]);
+  const box = el('div', { class: 'box inbox' }, [head]);
+  items.forEach((it) => box.appendChild(el('div', { class: 'inbox-row' }, [
+    el('span', { class: 'inbox-ic ' + it.tone }, [el('i', { class: 'ph ' + it.icon })]),
+    el('div', { class: 'inbox-txt' }, [
+      el('div', { class: 'it' }, [it.title]),
+      el('div', { class: 'is' }, [it.sub]),
+    ]),
+    el('button', { class: 'btn sm' + (it.primary ? ' primary' : ''), onclick: it.act }, [it.label]),
+  ])));
+  host.appendChild(box);
+}
+
 // ---- Phase 1: pipeline board ----
 async function loadPipeline() {
   const agents = await getJSON('/api/agents');
+  renderActionInbox(agents, lastSummary);
   const board = document.getElementById('pipeline');
   board.innerHTML = '';
   STAGES.forEach((stage) => {
@@ -306,7 +359,12 @@ async function requestReferee(agentId) {
   } catch (e) { toast(e.message, 'err'); }
 }
 async function sendReferee(agentId, refId) {
-  if (!confirm('Send this reference check to the Dify automation now?')) return;
+  const ok = await openDialog({
+    title: 'Send reference check',
+    body: 'We will email the referee a link to the reference form. You cannot un-send it.',
+    confirmLabel: 'Send it',
+  });
+  if (!ok) return;
   try {
     await postJSON('/api/agents/' + agentId + '/referees/' + refId + '/send');
     toast('Reference check sent.', 'ok');
@@ -314,7 +372,13 @@ async function sendReferee(agentId, refId) {
   } catch (e) { toast('Could not send: ' + e.message, 'err'); }
 }
 async function cancelDocRequest(agentId, docId, name) {
-  if (!confirm('Remove the request for “' + name + '”? Any file the agent uploaded for it is deleted.')) return;
+  const ok = await openDialog({
+    title: 'Remove document request',
+    body: 'Remove the request for “' + name + '”? Any file the agent already uploaded for it is deleted.',
+    confirmLabel: 'Remove request',
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await api('DELETE', '/api/agents/' + agentId + '/documents/' + docId);
     toast('Request removed.', 'ok');
@@ -348,7 +412,12 @@ function collegeDocRow(a, d) {
   ]);
 }
 async function approve(id) {
-  if (!confirm('Approve this agent? This moves it to Decision, creates the agreement, and adds a line to the history.')) return;
+  const ok = await openDialog({
+    title: 'Approve this agent',
+    body: 'This moves the application to Decision, creates the agreement, and adds a line to the permanent history.',
+    confirmLabel: 'Approve',
+  });
+  if (!ok) return;
   try {
     const r = await postJSON('/api/agents/' + id + '/approve');
     toast('Approved · agreement #' + r.agreement.id + ' created · added to history.', 'ok');
@@ -356,11 +425,17 @@ async function approve(id) {
   } catch (e) { toast('Approve failed: ' + e.message, 'err'); }
 }
 async function reject(id) {
-  const reason = prompt('Reason for rejecting (required — added to the history):');
-  if (reason === null) return;
-  if (!reason.trim()) { toast('A reason is required.', 'err'); return; }
+  const res = await openDialog({
+    title: 'Reject this application',
+    body: 'The reason is added to the permanent history and the agent can see it.',
+    fields: [{ name: 'reason', label: 'Reason', type: 'textarea', required: true,
+      placeholder: 'Why is this application not going ahead?' }],
+    confirmLabel: 'Reject application',
+    danger: true,
+  });
+  if (!res) return;
   try {
-    await postJSON('/api/agents/' + id + '/reject', { reason: reason.trim() });
+    await postJSON('/api/agents/' + id + '/reject', { reason: res.reason });
     toast('Rejected · added to history.', 'ok');
     await selectAgent(id);
   } catch (e) { toast('Reject failed: ' + e.message, 'err'); }
@@ -504,19 +579,34 @@ async function loadOffboarding() {
 }
 
 async function terminate(id, name) {
-  const reason = prompt('End the agreement with “' + name + '”.\n\nReason (required — the agent will see this):');
-  if (reason === null) return;
-  if (!reason.trim()) { toast('A reason is required.', 'err'); return; }
-  const days = prompt('Notice period in days:', '30');
-  if (days === null) return;
+  const res = await openDialog({
+    title: 'End the agreement with ' + name,
+    body: 'The agent sees this reason. Notice starts today and the agreement ends after the notice period.',
+    fields: [
+      { name: 'reason', label: 'Reason', type: 'textarea', required: true,
+        placeholder: 'Why is the agreement ending?' },
+      { name: 'days', label: 'Notice period (days)', type: 'number', value: '30', required: true,
+        validate: (v) => (Number(v) > 0 ? null : 'Notice period must be at least 1 day.') },
+    ],
+    confirmLabel: 'Send notice',
+    danger: true,
+  });
+  if (!res) return;
   try {
-    const r = await postJSON('/api/agents/' + id + '/terminate', { reason: reason.trim(), noticePeriodDays: Number(days) || 30 });
+    const r = await postJSON('/api/agents/' + id + '/terminate',
+      { reason: res.reason, noticePeriodDays: Number(res.days) || 30 });
     toast('Notice sent · ends ' + fmtDate(r.termination.effective_date) + '.', 'ok');
     await loadOffboarding();
   } catch (e) { toast(e.message, 'err'); }
 }
 async function completeOffboard(id, name) {
-  if (!confirm('Complete offboarding for “' + name + '”? This ends the relationship and marks the agreement as ended. The agent keeps access to their final statement.')) return;
+  const ok = await openDialog({
+    title: 'Complete offboarding for ' + name,
+    body: 'This ends the relationship and marks the agreement as ended. The agent keeps access to their final statement.',
+    confirmLabel: 'Complete offboarding',
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await postJSON('/api/agents/' + id + '/offboard/complete');
     toast('Offboarding complete.', 'ok');
