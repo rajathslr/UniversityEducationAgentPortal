@@ -9,16 +9,44 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css" />
   <style>
-    .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;
-      background:radial-gradient(1200px 500px at 50% -10%, var(--teal-soft), var(--paper))}
-    .auth-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);
-      border-radius:16px;box-shadow:var(--shadow);padding:30px 28px}
-    .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+    html,body{height:100%}
+    .auth-shell{min-height:100vh;display:grid;grid-template-columns:1fr 1fr}
+    @media (max-width:860px){.auth-shell{grid-template-columns:1fr}}
+
+    /* ---- Left: brand / orientation panel ---- */
+    .auth-brand-panel{position:relative;overflow:hidden;background:linear-gradient(150deg,var(--teal),var(--teal-deep));
+      color:#fff;padding:44px 44px;display:flex;flex-direction:column;justify-content:space-between}
+    @media (max-width:860px){.auth-brand-panel{padding:32px 28px 40px}}
+    .auth-brand-panel::before{content:"";position:absolute;right:-120px;top:-120px;width:420px;height:420px;
+      border-radius:50%;border:1px solid rgba(255,255,255,.14);pointer-events:none}
+    .auth-brand-panel::after{content:"";position:absolute;right:-40px;bottom:-160px;width:340px;height:340px;
+      border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.06), transparent 70%);pointer-events:none}
+    .auth-org{display:flex;align-items:center;gap:12px;position:relative}
+    .auth-org .crest{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-weight:800;
+      font-size:14px;font-family:"Archivo";flex:none}
+    .auth-org b{font-family:"Archivo";font-size:15px;display:block}
+    .auth-org small{font-family:"IBM Plex Mono";font-size:11.5px;color:rgba(255,255,255,.68);display:block;margin-top:2px}
+
+    .auth-lede{position:relative;max-width:420px}
+    .auth-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);
+      font-weight:700;margin-bottom:12px}
+    .auth-lede h1{font-family:"Archivo";font-weight:700;font-size:30px;line-height:1.2;letter-spacing:-.015em;margin:0 0 12px}
+    .auth-lede p{font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.82);margin:0}
+
+    .auth-tags{position:relative;display:flex;gap:8px;flex-wrap:wrap}
+    .auth-tags .tag{font-family:"IBM Plex Mono";font-size:11px;font-weight:600;color:rgba(255,255,255,.85);
+      border:1px solid rgba(255,255,255,.28);border-radius:20px;padding:4px 11px}
+
+    /* ---- Right: form panel ---- */
+    .auth-form-panel{display:flex;align-items:center;justify-content:center;padding:24px;background:var(--paper)}
+    .auth-card{width:100%;max-width:380px}
+    .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
     .auth-brand .mark{width:32px;height:32px;border-radius:8px;background:linear-gradient(150deg,var(--teal),var(--teal-deep));
       display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px;font-family:"Archivo"}
     .auth-brand b{font-family:"Archivo";font-size:15px}
-    .auth-card h1{font-family:"Archivo";font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
-    .auth-card .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+    .auth-card h1{font-family:"Archivo";font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
+    .auth-card .sub{color:var(--muted);font-size:13.5px;margin:0 0 22px}
     .auth-card .field{margin-bottom:14px}
     .auth-err{display:none;background:var(--red-soft);color:var(--red);border:1px solid var(--red);
       border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:14px}
@@ -27,23 +55,46 @@
   </style>
 </head>
 <body>
-  <div class="auth-wrap">
-    <form class="auth-card" id="loginForm" autocomplete="on">
-      <div class="auth-brand"><div class="mark">M</div><b>Meridian University</b></div>
-      <h1>Sign in</h1>
-      <p class="sub">Agent Management System</p>
-      <div class="auth-err" id="err"></div>
-      <div class="field">
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" autocomplete="username" autofocus required />
+  <div class="auth-shell">
+    <div class="auth-brand-panel">
+      <div class="auth-org">
+        <div class="crest">M</div>
+        <div>
+          <b>Meridian University</b>
+          <small>CRICOS 00000A · TEQSA regulated</small>
+        </div>
       </div>
-      <div class="field">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+      <div class="auth-lede">
+        <div class="auth-eyebrow">Agent Management System</div>
+        <h1>The shared workspace for Meridian and its education agents.</h1>
+        <p>One live record of onboarding, compliance and commission — with the checks the regulator expects built
+          in. You see what needs your decision; your agents see exactly where they stand.</p>
       </div>
-      <button class="btn primary block" type="submit" id="submitBtn">Sign in</button>
-      <div class="tlsnote"><span>🔒</span><span>Connection secured with TLS (self-signed certificate). Your password is sent over HTTPS and stored only as a salted hash.</span></div>
-    </form>
+
+      <div class="auth-tags">
+        <span class="tag">CRICOS</span><span class="tag">ESOS Act</span><span class="tag">National Code 2018</span>
+      </div>
+    </div>
+
+    <div class="auth-form-panel">
+      <form class="auth-card" id="loginForm" autocomplete="on">
+        <div class="auth-brand"><div class="mark">M</div><b>Meridian University</b></div>
+        <h1>Sign in</h1>
+        <p class="sub">Agent Management System</p>
+        <div class="auth-err" id="err"></div>
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" autofocus required />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn primary block" type="submit" id="submitBtn">Sign in</button>
+        <div class="tlsnote"><span>🔒</span><span>Connection secured with TLS (self-signed certificate). Your password is sent over HTTPS and stored only as a salted hash.</span></div>
+      </form>
+    </div>
   </div>
 
   <script src="/js/common.js"></script>

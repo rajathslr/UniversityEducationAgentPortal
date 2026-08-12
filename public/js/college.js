@@ -25,11 +25,14 @@ async function loadSummary() {
   const c = s.cards;
   const host = document.getElementById('collegeStats');
   host.innerHTML = '';
-  host.appendChild(stat('green', c.in_pipeline, 'In pipeline', c.awaiting_review + ' awaiting your review'));
-  host.appendChild(stat('amber', c.docs_requested, 'Documents requested', c.docs_chased_7d + ' chased > 7 days'));
+  host.appendChild(stat('green', c.in_pipeline, 'In pipeline',
+    c.awaiting_review + ' waiting on your decision to move forward'));
+  host.appendChild(stat('amber', c.docs_requested, 'Documents requested',
+    c.docs_chased_7d + ' unanswered over a week — may need a nudge'));
   host.appendChild(stat('green', c.verified_this_month, 'Verified this month',
     (c.verified_delta >= 0 ? '+' : '') + c.verified_delta + ' vs last month'));
-  host.appendChild(stat('red', c.expiring_certs, 'Expiring documents', 'within 30 days'));
+  host.appendChild(stat('red', c.expiring_certs, 'Expiring documents',
+    'renew within 30 days to avoid a compliance gap'));
   // per-section pending badges on the sidebar
   Object.keys(s.sections).forEach((k) => {
     const badge = document.querySelector('#collegeNav [data-badge="' + k + '"]');
@@ -53,16 +56,18 @@ async function loadPipeline() {
     if (!inStage.length) body.appendChild(el('div', { class: 'empty-col' }, ['—']));
     inStage.forEach((a) => {
       const chips = [];
-      if (a.decision) chips.push(chip(a.decision, a.decision === 'Approved' ? 'green' : 'red', true));
       if (a.coi_frozen) chips.push(chip('On hold', 'amber', true));
+      if (a.decision) chips.push(chip(a.decision, a.decision === 'Approved' ? 'green' : 'red', true));
       if (a.marn && !a.coi_frozen) chips.push(chip('MARN', 'teal'));
       body.appendChild(el('div', {
         class: 'pcard' + (a.id === selectedAgentId ? ' selected' : ''),
         onclick: () => selectAgent(a.id),
       }, [
-        el('div', { class: 'nm' }, [a.business_name]),
+        el('div', { class: 'top' }, [
+          el('div', { class: 'nm' }, [a.business_name]),
+          chips.length ? el('div', { class: 'cardchips' }, chips) : null,
+        ]),
         el('div', { class: 'ab' }, ['ABN ' + a.abn]),
-        chips.length ? el('div', { class: 'cardchips' }, chips) : null,
       ]));
     });
     col.appendChild(body);
