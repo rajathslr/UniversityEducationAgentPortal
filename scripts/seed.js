@@ -29,10 +29,31 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ChangeMe!23';
 const SEED_USER_PASSWORD = process.env.SEED_USER_PASSWORD || 'Passw0rd!23';
 
+// Seeding TRUNCATEs everything, so refuse to run over a database that already
+// holds data unless it is explicitly forced. Without this guard, a stray
+// `npm run seed` against production destroys it.
+const FORCE = process.argv.includes('--force') || process.env.FORCE === '1';
+
+async function assertSafeToSeed(db) {
+  if (FORCE) return;
+  const { rows } = await db.query(
+    `SELECT (SELECT count(*) FROM agents)::int AS agents,
+            (SELECT count(*) FROM users)::int  AS users`);
+  const { agents, users } = rows[0];
+  if (agents > 0 || users > 0) {
+    console.error(
+      `\nRefusing to seed: this database already has ${agents} agent(s) and ${users} user(s).\n` +
+      'Seeding TRUNCATEs every table, which would destroy that data.\n' +
+      'If you really want to replace it, re-run with --force.\n');
+    process.exit(1);
+  }
+}
+
 async function main() {
   const db = new Client({ connectionString: url });
   await db.connect();
   try {
+    await assertSafeToSeed(db);
     await db.query('BEGIN');
 
     // Wipe (respect FKs) so seed is repeatable.
@@ -40,7 +61,8 @@ async function main() {
       sessions, users, terminations,
       commission_lines, invoices, students,
       collateral_acks, collateral_versions, collateral_documents,
-      agreements, audit_log, referee_checks, agent_documents, agents
+      agreements, audit_log, referee_checks, agent_documents,
+      agent_applications, agents
       RESTART IDENTITY CASCADE`);
 
     // ---------------------------------------------------------------

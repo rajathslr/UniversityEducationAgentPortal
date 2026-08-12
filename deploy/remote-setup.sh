@@ -102,14 +102,17 @@ log "Installing dependencies"
 ( cd "$APP_SRC" && sudo -u "$APP_USER" env "PATH=$PATH" HOME="$APP_DIR" "$NPM_BIN" ci --omit=dev )
 log "Generating self-signed certificate (SAN includes ${PUBLIC_IP})"
 ( cd "$APP_SRC" && sudo -u "$APP_USER" env "PATH=$PATH" HOME="$APP_DIR" CERT_EXTRA_IP="$PUBLIC_IP" "$NODE_BIN" scripts/gen-cert.js )
-log "Applying schema"
+# Additive only: migrate.js strips schema.sql's DROP block unless --fresh is
+# passed, so re-running this script adds new tables/columns and leaves live
+# data alone. Never add --fresh here.
+log "Applying schema (additive — existing data preserved)"
 ( cd "$APP_SRC" && sudo -u "$APP_USER" env "PATH=$PATH" HOME="$APP_DIR" "$NODE_BIN" scripts/migrate.js )
 if [ ! -f "$APP_DIR/.seeded" ]; then
   log "Seeding demo data (first run only — this is destructive, runs once)"
-  ( cd "$APP_SRC" && sudo -u "$APP_USER" env "PATH=$PATH" HOME="$APP_DIR" "$NODE_BIN" scripts/seed.js )
+  ( cd "$APP_SRC" && sudo -u "$APP_USER" env "PATH=$PATH" HOME="$APP_DIR" "$NODE_BIN" scripts/seed.js --force )
   touch "$APP_DIR/.seeded"
 else
-  log "Seed already applied (found $APP_DIR/.seeded) — skipping to protect data"
+  log "Seed already applied (found $APP_DIR/.seeded) — skipping"
 fi
 
 # --- 6. systemd service (own node path) ---

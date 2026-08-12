@@ -10,9 +10,10 @@
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
     "gen-cert": "node scripts/gen-cert.js",
-    "setup": "node scripts/migrate.js && node scripts/seed.js && node scripts/gen-cert.js",
-    "reset": "node scripts/migrate.js && node scripts/seed.js",
-    "test": "node --test"
+    "setup": "node scripts/migrate.js --fresh && node scripts/seed.js --force && node scripts/gen-cert.js",
+    "reset": "node scripts/migrate.js --fresh && node scripts/seed.js --force",
+    "test": "node --test",
+    "migrate:fresh": "node scripts/migrate.js --fresh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

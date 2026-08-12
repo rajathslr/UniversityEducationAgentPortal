@@ -570,4 +570,11 @@ function labelEvent(e) {
   chipHost.appendChild(userChip(me));
   loadPipeline();
   loadSummary();
+
+  // Agencies can be created in another tab (admin portal) or by an agent
+  // applying. Re-check when this tab is looked at again, so the board isn't
+  // silently stale.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { loadPipeline(); loadSummary(); }
+  });
 })();

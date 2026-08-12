@@ -1,7 +1,13 @@
 -- Education Agent Management System — schema
 -- One CRICOS/TEQSA-regulated Australian university managing its education agents.
--- Single jurisdiction (AUD, Australian rules). Idempotent: safe to re-run.
+-- Single jurisdiction (AUD, Australian rules).
+--
+-- Safe to re-run: every CREATE is IF NOT EXISTS, and columns added after the
+-- first release are backfilled by the catch-up ALTERs at the foot of the file.
+-- The DROP block below is DESTRUCTIVE and is stripped out by scripts/migrate.js
+-- unless it is run with --fresh. Do not remove these markers.
 
+-- @fresh-only:start
 DROP TABLE IF EXISTS sessions              CASCADE;
 DROP TABLE IF EXISTS users                 CASCADE;
 DROP TABLE IF EXISTS terminations          CASCADE;
@@ -17,12 +23,13 @@ DROP TABLE IF EXISTS referee_checks        CASCADE;
 DROP TABLE IF EXISTS agent_documents       CASCADE;
 DROP TABLE IF EXISTS agent_applications    CASCADE;
 DROP TABLE IF EXISTS agents                CASCADE;
+-- @fresh-only:end
 
 -- =====================================================================
 -- Phase 1 — Selection & due diligence
 -- =====================================================================
 
-CREATE TABLE agents (
+CREATE TABLE IF NOT EXISTS agents (
   id              SERIAL PRIMARY KEY,
   business_name   TEXT        NOT NULL,
   abn             TEXT        NOT NULL,               -- Australian Business Number
@@ -55,7 +62,7 @@ CREATE TABLE agents (
 -- post lands here first and only becomes a real agent once an admin approves
 -- it. Approval creates the agents row + the operator login and links back
 -- via agent_id.
-CREATE TABLE agent_applications (
+CREATE TABLE IF NOT EXISTS agent_applications (
   id              SERIAL PRIMARY KEY,
   business_name   TEXT        NOT NULL,
   abn             TEXT        NOT NULL,
@@ -78,7 +85,7 @@ CREATE TABLE agent_applications (
 -- exactly one real file, then VERIFIED by an officer.
 --   status: 'Requested' -> 'Uploaded' -> 'Verified'
 -- Files live on disk under uploads/<agent_id>/; only metadata is stored here.
-CREATE TABLE agent_documents (
+CREATE TABLE IF NOT EXISTS agent_documents (
   id                SERIAL PRIMARY KEY,
   agent_id          INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
   doc_type          TEXT    NOT NULL,     -- 'ASIC extract' | 'PIER cert' | 'QEAC cert' | 'MARN' | ...
@@ -95,9 +102,9 @@ CREATE TABLE agent_documents (
   size_bytes        INTEGER,
   uploaded_at       TIMESTAMPTZ
 );
-CREATE INDEX agent_documents_agent_idx ON agent_documents(agent_id);
+CREATE INDEX IF NOT EXISTS agent_documents_agent_idx ON agent_documents(agent_id);
 
-CREATE TABLE referee_checks (
+CREATE TABLE IF NOT EXISTS referee_checks (
   id             SERIAL PRIMARY KEY,
   agent_id       INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
   -- Officer opens a slot ('Requested'); agent fills it in ('Ready'); officer
@@ -118,7 +125,7 @@ CREATE TABLE referee_checks (
 );
 
 -- Immutable, append-only. No UPDATE/DELETE in application code.
-CREATE TABLE audit_log (
+CREATE TABLE IF NOT EXISTS audit_log (
   id         SERIAL PRIMARY KEY,
   agent_id   INTEGER REFERENCES agents(id) ON DELETE CASCADE,
   event_type TEXT        NOT NULL,     -- 'STAGE_CHANGE' | 'APPROVED' | 'REJECTED' | 'COI_SIGNED' | 'COLLATERAL_ACK' | ...
@@ -131,7 +138,7 @@ CREATE TABLE audit_log (
 -- Phase 2 — Onboarding & collateral
 -- =====================================================================
 
-CREATE TABLE agreements (
+CREATE TABLE IF NOT EXISTS agreements (
   id             SERIAL PRIMARY KEY,
   agent_id       INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
   status         TEXT    NOT NULL DEFAULT 'Draft',  -- 'Draft' | 'Active' | 'Expired'
@@ -147,7 +154,7 @@ CREATE TABLE agreements (
 -- acknowledges it; the college completes offboarding once the notice period
 -- has run and the final position is settled.
 -- =====================================================================
-CREATE TABLE terminations (
+CREATE TABLE IF NOT EXISTS terminations (
   id                 SERIAL PRIMARY KEY,
   agent_id           INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
   reason             TEXT    NOT NULL,
@@ -160,14 +167,14 @@ CREATE TABLE terminations (
   status             TEXT    NOT NULL DEFAULT 'Notice Given', -- 'Notice Given' | 'Acknowledged' | 'Terminated'
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX terminations_agent_idx ON terminations(agent_id);
+CREATE INDEX IF NOT EXISTS terminations_agent_idx ON terminations(agent_id);
 
-CREATE TABLE collateral_documents (
+CREATE TABLE IF NOT EXISTS collateral_documents (
   id       SERIAL PRIMARY KEY,
   doc_name TEXT NOT NULL              -- e.g. '2026 Fee Schedule'
 );
 
-CREATE TABLE collateral_versions (
+CREATE TABLE IF NOT EXISTS collateral_versions (
   id           SERIAL PRIMARY KEY,
   document_id  INTEGER NOT NULL REFERENCES collateral_documents(id) ON DELETE CASCADE,
   version      INTEGER NOT NULL,
@@ -177,13 +184,13 @@ CREATE TABLE collateral_versions (
   published_at DATE    NOT NULL
 );
 -- Exactly one CURRENT version per document.
-CREATE UNIQUE INDEX one_current_per_doc
+CREATE UNIQUE INDEX IF NOT EXISTS one_current_per_doc
   ON collateral_versions (document_id)
   WHERE status = 'CURRENT';
 
 -- Acknowledgment ledger: audit evidence an agent discarded the old version and
 -- confirmed the current one.
-CREATE TABLE collateral_acks (
+CREATE TABLE IF NOT EXISTS collateral_acks (
   id              SERIAL PRIMARY KEY,
   version_id      INTEGER NOT NULL REFERENCES collateral_versions(id) ON DELETE CASCADE,
   agent_id        INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
@@ -196,7 +203,7 @@ CREATE TABLE collateral_acks (
 -- =====================================================================
 
 -- Students are imported reference data (never onboarded here).
-CREATE TABLE students (
+CREATE TABLE IF NOT EXISTS students (
   id               SERIAL PRIMARY KEY,
   agent_id         INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
   full_name        TEXT    NOT NULL,
@@ -207,7 +214,7 @@ CREATE TABLE students (
   enrolment_status TEXT    NOT NULL DEFAULT 'Enrolled' -- 'Enrolled' | 'Withdrawn' | 'Deferred' | 'Completed'
 );
 
-CREATE TABLE invoices (
+CREATE TABLE IF NOT EXISTS invoices (
   id             SERIAL PRIMARY KEY,
   invoice_number TEXT NOT NULL,
   period         TEXT NOT NULL,          -- e.g. 'Q1 2026'
@@ -216,7 +223,7 @@ CREATE TABLE invoices (
 
 -- One commission line per student on an invoice. The two regulatory inputs are
 -- stored as SEPARATE columns so grandfathering cannot collapse to one boolean.
-CREATE TABLE commission_lines (
+CREATE TABLE IF NOT EXISTS commission_lines (
   id                              SERIAL PRIMARY KEY,
   invoice_id                      INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
   student_id                      INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -245,7 +252,7 @@ CREATE TABLE commission_lines (
 --   'agent'   — Agent operator: scoped to exactly one agency (agent_id).
 -- Passwords are stored as salted one-way scrypt hashes (never plaintext,
 -- never reversibly encrypted). Format: 'scrypt$N$saltHex$hashHex'.
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
   username      TEXT        NOT NULL UNIQUE,
   password_hash TEXT        NOT NULL,
@@ -262,13 +269,50 @@ CREATE TABLE users (
     (role <> 'agent' AND agent_id IS NULL)
   )
 );
-CREATE INDEX users_role_idx ON users(role);
+CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
 
 -- Opaque server-side session tokens delivered as an httpOnly cookie.
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
   token      TEXT        PRIMARY KEY,             -- random 256-bit hex
   user_id    INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX sessions_user_idx ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
+
+-- =====================================================================
+-- Catch-up migrations
+-- =====================================================================
+-- CREATE TABLE IF NOT EXISTS leaves an existing table untouched, so columns
+-- added after a database was first created have to be applied explicitly.
+-- Every statement here must be idempotent and non-destructive — this block
+-- runs on every deploy, against live data.
+
+-- Added with the public application workflow (Aug 2026).
+ALTER TABLE agents          ADD COLUMN IF NOT EXISTS origin_city    TEXT;
+
+-- Added with the Dify reference-check automation (Aug 2026). Databases
+-- created before it have referee_checks.contact instead of referee_email.
+ALTER TABLE referee_checks  ADD COLUMN IF NOT EXISTS referee_email  TEXT;
+ALTER TABLE referee_checks  ADD COLUMN IF NOT EXISTS requested_by   TEXT;
+ALTER TABLE referee_checks  ADD COLUMN IF NOT EXISTS requested_at   TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE referee_checks  ADD COLUMN IF NOT EXISTS submitted_at   TIMESTAMPTZ;
+ALTER TABLE referee_checks  ADD COLUMN IF NOT EXISTS sent_at        TIMESTAMPTZ;
+ALTER TABLE referee_checks  ADD COLUMN IF NOT EXISTS callback_token TEXT;
+ALTER TABLE referee_checks  ADD COLUMN IF NOT EXISTS notes          TEXT;
+DO $$ BEGIN
+  -- Carry the old free-text contact across, then retire the column.
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name='referee_checks' AND column_name='contact') THEN
+    UPDATE referee_checks SET referee_email = contact
+      WHERE referee_email IS NULL AND contact IS NOT NULL;
+    ALTER TABLE referee_checks DROP COLUMN contact;
+  END IF;
+  -- referee_name/organisation are nullable now (an officer opens an empty slot).
+  ALTER TABLE referee_checks ALTER COLUMN referee_name DROP NOT NULL;
+EXCEPTION WHEN undefined_column OR undefined_table THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE referee_checks ADD CONSTRAINT referee_checks_callback_token_key UNIQUE (callback_token);
+EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL;
+END $$;

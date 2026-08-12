@@ -68,7 +68,23 @@ sudo -u agentms bash -lc 'cd /opt/agentms/app && npm ci --omit=dev && node scrip
 systemctl restart agentms
 ```
 
-(`migrate` is safe; **do not** run `seed` on an existing deployment — it truncates.)
+### Migrations are additive — keep them that way
+
+`db/schema.sql` opens with a `DROP TABLE` block that destroys every table. It is
+fenced between `-- @fresh-only:start` / `-- @fresh-only:end` markers and
+`scripts/migrate.js` **strips it unless you pass `--fresh`**, so the command
+above adds new tables/columns and leaves live data alone. Columns added after a
+database was first created are applied by the catch-up `ALTER ... ADD COLUMN IF
+NOT EXISTS` block at the foot of `schema.sql` — put new ones there.
+
+- **Never** run `migrate.js --fresh` (or `npm run reset` / `npm run setup`, which
+  both imply it) against the droplet — it drops the lot.
+- `seed.js` TRUNCATEs everything and now refuses to run against a database that
+  already has agents or users unless given `--force`.
+
+This bit twice before the guards existed: agencies created through the admin
+portal on 11 Aug were destroyed by later schema deploys, which looked like
+"new agencies don't show up in the officer view".
 
 ## Rollback / remove (AgentMS only — never touches the EV app)
 

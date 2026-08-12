@@ -35,16 +35,42 @@ async function ensureDatabase() {
   await admin.end();
 }
 
+// schema.sql opens with a DROP block that destroys every table. That is only
+// ever wanted when deliberately rebuilding from scratch, so it is fenced off
+// with markers and stripped out unless --fresh is passed. Without this, every
+// deploy silently wiped production data.
+const FRESH = process.argv.includes('--fresh') || process.env.FRESH === '1';
+
+function loadSchema() {
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
+  const START = '-- @fresh-only:start';
+  const END = '-- @fresh-only:end';
+  if (FRESH) return sql;
+  const from = sql.indexOf(START);
+  const to = sql.indexOf(END);
+  if (from === -1 || to === -1) {
+    throw new Error(
+      'schema.sql is missing the @fresh-only markers around its DROP block. ' +
+      'Refusing to run it, because it may destroy data.'
+    );
+  }
+  return sql.slice(0, from) + sql.slice(to + END.length);
+}
+
 async function applySchema() {
   const client = new Client({ connectionString: url.toString() });
   await client.connect();
-  const sql = fs.readFileSync(
-    path.join(__dirname, '..', 'db', 'schema.sql'),
-    'utf8'
-  );
-  await client.query(sql);
-  await client.end();
-  console.log('Schema applied.');
+  try {
+    if (FRESH) {
+      const { rows } = await client.query(
+        `SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public'`);
+      if (rows[0].n > 0) console.log(`--fresh: DROPPING ${rows[0].n} existing tables and all their data.`);
+    }
+    await client.query(loadSchema());
+  } finally {
+    await client.end();
+  }
+  console.log(FRESH ? 'Schema rebuilt from scratch (data destroyed).' : 'Schema applied (existing data preserved).');
 }
 
 (async () => {
