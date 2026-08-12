@@ -139,6 +139,71 @@ app.post('/api/referee-callback', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// POST /api/apply — OPEN. Public "apply to partner" form. Anyone on the
+// internet can reach this, so submissions land in agent_applications (a
+// staging table) rather than the live agents pipeline, and an admin has to
+// approve one before it becomes a real agency with a login.
+const APPLY_MAX_PER_HOUR = 5;
+const applyHits = new Map(); // ip -> [timestamps]
+function applyRateLimited(ip) {
+  const now = Date.now();
+  const cutoff = now - 60 * 60 * 1000;
+  const hits = (applyHits.get(ip) || []).filter((t) => t > cutoff);
+  hits.push(now);
+  applyHits.set(ip, hits);
+  if (applyHits.size > 5000) { // crude cap so the map can't grow without bound
+    for (const [k, v] of applyHits) if (!v.some((t) => t > cutoff)) applyHits.delete(k);
+  }
+  return hits.length > APPLY_MAX_PER_HOUR;
+}
+
+app.post('/api/apply', wrap(async (req, res) => {
+  if (applyRateLimited(req.ip)) {
+    req.log.warn('apply_rate_limited', { ip: req.ip });
+    return res.status(429).json({ error: 'Too many applications from this connection. Please try again later.' });
+  }
+  const b = req.body || {};
+  const s = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+  const businessName = s(b.business_name, 160);
+  const abnRaw = s(b.abn, 20);
+  const abnDigits = abnRaw.replace(/\s+/g, '');
+  const operatorName = s(b.operator_name, 120);
+  const operatorEmail = s(b.operator_email, 160);
+  const originCity = s(b.origin_city, 120) || null;
+  const sourceMarket = s(b.source_market, 120) || null;
+  const marn = s(b.marn, 40) || null;
+  const note = s(b.note, 2000) || null;
+
+  const errs = [];
+  if (!businessName) errs.push('Agency name is required.');
+  if (!/^\d{11}$/.test(abnDigits)) errs.push('ABN must be 11 digits.');
+  if (!operatorName) errs.push('A primary contact name is required.');
+  if (!EMAIL_RE.test(operatorEmail)) errs.push('A valid contact email is required.');
+  if (marn && !/^MARN-?\d{4,10}$/i.test(marn)) errs.push('MARN looks invalid (e.g. MARN-1234567).');
+  if (errs.length) return res.status(400).json({ error: errs.join(' ') });
+
+  // Don't let the same business apply twice, or apply if already onboarded.
+  const dupeAgent = (await db.query(
+    `SELECT id FROM agents WHERE replace(abn,' ','')=$1`, [abnDigits])).rows[0];
+  if (dupeAgent) {
+    return res.status(409).json({ error: 'An agency with that ABN is already registered with Meridian. Please contact your college officer.' });
+  }
+  const dupeApp = (await db.query(
+    `SELECT id FROM agent_applications WHERE replace(abn,' ','')=$1 AND status='Pending'`, [abnDigits])).rows[0];
+  if (dupeApp) {
+    return res.status(409).json({ error: 'An application for that ABN is already with us and is being reviewed.' });
+  }
+
+  const appRow = (await db.query(
+    `INSERT INTO agent_applications
+       (business_name, abn, operator_name, operator_email, origin_city, source_market, marn, note, submitted_ip)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, business_name, submitted_at`,
+    [businessName, abnRaw, operatorName, operatorEmail, originCity, sourceMarket, marn, note, req.ip]
+  )).rows[0];
+  req.log.info('application_submitted', { applicationId: appRow.id, businessName });
+  res.json({ ok: true, application_id: appRow.id });
+}));
+
 // Everything below /api requires an authenticated session.
 app.use('/api', auth.requireAuth);
 
@@ -233,6 +298,108 @@ app.delete('/api/admin/users/:id', wrap(async (req, res) => {
 
 // Default documents auto-requested when a new agency is created.
 const DEFAULT_DOC_CHECKLIST = ['ASIC extract', 'PIER/QEAC certificate'];
+
+// =====================================================================
+// Public applications — admin review queue
+// =====================================================================
+
+// GET /api/admin/applications?status=Pending  (admin only)
+app.get('/api/admin/applications', wrap(async (req, res) => {
+  const status = (req.query.status || '').trim();
+  const params = [];
+  let sql = `SELECT * FROM agent_applications`;
+  if (status) { params.push(status); sql += ` WHERE status=$1`; }
+  // Pending first, then most recent.
+  sql += ` ORDER BY (status='Pending') DESC, submitted_at DESC`;
+  const { rows } = await db.query(sql, params);
+  res.json(rows);
+}));
+
+// POST /api/admin/applications/:id/approve {username, password}
+// Promotes an application into a real agency + operator login, in one
+// transaction, and auto-requests the standard onboarding documents.
+app.post('/api/admin/applications/:id/approve', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const username = ((req.body && req.body.username) || '').trim();
+  const password = (req.body && req.body.password) || '';
+  if (!username) return res.status(400).json({ error: 'A login username is required.' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const ap = (await client.query(
+      `SELECT * FROM agent_applications WHERE id=$1 FOR UPDATE`, [id])).rows[0];
+    if (!ap) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Application not found.' }); }
+    if (ap.status !== 'Pending') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: `This application was already ${ap.status.toLowerCase()}.` });
+    }
+
+    const agent = (await client.query(
+      `INSERT INTO agents (business_name, abn, operator_name, operator_email, source_market, origin_city, stage, marn)
+       VALUES ($1,$2,$3,$4,$5,$6,'New',$7) RETURNING *`,
+      [ap.business_name, ap.abn, ap.operator_name, ap.operator_email,
+        ap.source_market || 'India', ap.origin_city, ap.marn]
+    )).rows[0];
+
+    let user;
+    try {
+      user = (await client.query(
+        `INSERT INTO users (username, password_hash, role, full_name, agent_id)
+         VALUES ($1,$2,'agent',$3,$4) RETURNING id, username, role, agent_id`,
+        [username, auth.hashPassword(password), ap.operator_name, agent.id]
+      )).rows[0];
+    } catch (e) {
+      if (e.code === '23505') { await client.query('ROLLBACK'); return res.status(409).json({ error: 'That username is already taken.' }); }
+      throw e;
+    }
+
+    for (const dt of DEFAULT_DOC_CHECKLIST) {
+      await client.query(
+        `INSERT INTO agent_documents (agent_id, doc_type, status, requested_by)
+         VALUES ($1,$2,'Requested',$3)`,
+        [agent.id, dt, req.user.username]
+      );
+    }
+    await client.query(
+      `UPDATE agent_applications SET status='Approved', reviewed_at=now(), reviewed_by=$2, agent_id=$3 WHERE id=$1`,
+      [id, req.user.username, agent.id]
+    );
+    // The applicant's own words are worth keeping on the permanent record —
+    // it's the only place the officer sees why they applied.
+    await appendAudit(client, agent.id, 'AGENT_CREATED',
+      `Approved from a public application submitted ${new Date(ap.submitted_at).toISOString().slice(0, 10)}. `
+      + `Login "${username}" issued. ${DEFAULT_DOC_CHECKLIST.length} documents requested.`
+      + (ap.note ? ` Applicant wrote: "${ap.note}"` : ''),
+      req.user.username);
+
+    await client.query('COMMIT');
+    req.log.info('application_approved', { applicationId: id, agentId: agent.id });
+    res.json({ ok: true, agent, user });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}));
+
+// POST /api/admin/applications/:id/reject {reason}
+app.post('/api/admin/applications/:id/reject', wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const reason = ((req.body && req.body.reason) || '').trim();
+  if (!reason) return res.status(400).json({ error: 'A reason is required.' });
+  const ap = (await db.query(`SELECT status FROM agent_applications WHERE id=$1`, [id])).rows[0];
+  if (!ap) return res.status(404).json({ error: 'Application not found.' });
+  if (ap.status !== 'Pending') return res.status(409).json({ error: `This application was already ${ap.status.toLowerCase()}.` });
+  await db.query(
+    `UPDATE agent_applications SET status='Rejected', reviewed_at=now(), reviewed_by=$2, decision_reason=$3 WHERE id=$1`,
+    [id, req.user.username, reason]
+  );
+  req.log.info('application_rejected', { applicationId: id });
+  res.json({ ok: true });
+}));
 
 // POST /api/admin/agencies  — admin creates a new agency (starts at 'New') + its agent login (admin only)
 app.post('/api/admin/agencies', wrap(async (req, res) => {
@@ -1051,6 +1218,7 @@ function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 // /api/auth/me on load and redirects to /login if needed).
 const page = (name) => (req, res) => res.sendFile(path.join(__dirname, '..', 'public', name));
 app.get('/login', page('login.html'));
+app.get('/apply', page('apply.html'));   // public — no session needed
 app.get('/admin', page('admin.html'));
 app.get('/college', page('college.html'));
 app.get('/agent', page('agent.html'));

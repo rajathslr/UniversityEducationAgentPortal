@@ -103,6 +103,8 @@ function renderDossier(a, audit) {
       ]),
       el('div', { class: 'mono', style: 'color:var(--muted-2);font-size:12px;margin-top:3px' },
         ['ABN ' + a.abn + ' · ' + a.operator_name + ' · ' + a.operator_email]),
+      el('div', { class: 'small muted', style: 'margin-top:3px' },
+        [[a.origin_city, a.source_market].filter(Boolean).join(' · ') || 'Location not recorded']),
       renderRail(a),
     ]),
   ]);
@@ -538,11 +540,6 @@ function stat(kind, n, label, sub) {
     el('div', { class: 'val' }, [String(n)]),
     sub ? el('div', { class: 'sub' }, [sub]) : null,
   ]);
-}
-function kv(pairs) {
-  const g = el('div', { class: 'kv' });
-  pairs.forEach(([k, v]) => { g.appendChild(el('div', { class: 'k' }, [k])); g.appendChild(el('div', {}, [v])); });
-  return g;
 }
 function allVerified(docs) { return docs.every((d) => d.verified); }
 function abbr(t) {

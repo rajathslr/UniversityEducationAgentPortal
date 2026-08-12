@@ -27,12 +27,20 @@
   <div class="appshell">
     <aside class="sidebar" id="adminNav" aria-label="Admin sections">
       <div class="side-h">Administration</div>
-      <a href="#" data-tab="agencies" class="active"><span class="ic">🏢</span>Agencies</a>
+      <a href="#" data-tab="applications" class="active"><span class="ic">📨</span>Applications <span class="b" id="appsBadge" style="display:none"></span></a>
+      <a href="#" data-tab="agencies"><span class="ic">🏢</span>Agencies</a>
       <a href="#" data-tab="users"><span class="ic">👤</span>Users</a>
     </aside>
     <main class="content">
+      <!-- APPLICATIONS -->
+      <section class="panel show" id="tab-applications">
+        <div class="sec-head"><h2>Agent applications</h2>
+          <p>Agencies who applied through the public form. Approving one creates the agency at the New stage and issues its login.</p></div>
+        <div id="applicationList"></div>
+      </section>
+
       <!-- AGENCIES -->
-      <section class="panel show" id="tab-agencies">
+      <section class="panel" id="tab-agencies">
         <div class="sec-head"><h2>Add an agency</h2><p>Creates the agency at the New application stage plus its agent login.</p></div>
         <div class="box">
           <div class="box-h"><h3>New agency</h3><div class="spacer"></div>

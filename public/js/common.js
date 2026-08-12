@@ -109,6 +109,13 @@ function chip(text, kind, withDot) {
   return el('span', { class: 'chip ' + (kind || 'grey') },
     [withDot ? el('span', { class: 'dot' }) : null, text].filter(Boolean));
 }
+// Label/value pairs in a two-column grid. Used by the college dossier and the
+// admin application review cards.
+function kv(pairs) {
+  const g = el('div', { class: 'kv' });
+  pairs.forEach(([k, v]) => { g.appendChild(el('div', { class: 'k' }, [k])); g.appendChild(el('div', {}, [v])); });
+  return g;
+}
 function fmtDate(s) { return s ? new Date(s).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'; }
 function fmtDateTime(s) { return s ? new Date(s).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'; }
 

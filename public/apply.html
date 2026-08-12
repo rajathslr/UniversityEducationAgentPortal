@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Apply to partner — Meridian University</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .apply-top{background:linear-gradient(150deg,var(--teal),var(--teal-deep));color:#fff;
+      padding:30px 30px 34px;position:relative;overflow:hidden}
+    .apply-top::before{content:"";position:absolute;right:-100px;top:-140px;width:380px;height:380px;
+      border-radius:50%;border:1px solid rgba(255,255,255,.14);pointer-events:none}
+    .apply-top .inner{max-width:820px;margin:0 auto;position:relative}
+    .apply-org{display:flex;align-items:center;gap:11px;margin-bottom:22px}
+    .apply-org .crest{width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-weight:800;
+      font-size:13px;font-family:"Archivo";flex:none}
+    .apply-org b{font-family:"Archivo";font-size:14.5px;display:block}
+    .apply-org small{font-family:"IBM Plex Mono";font-size:11px;color:rgba(255,255,255,.68);display:block;margin-top:2px}
+    .apply-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);font-weight:700}
+    .apply-top h1{font-family:"Archivo";font-weight:700;font-size:27px;letter-spacing:-.02em;margin:9px 0 10px}
+    .apply-top p{font-size:14px;line-height:1.6;color:rgba(255,255,255,.85);margin:0;max-width:620px}
+
+    .apply-wrap{max-width:820px;margin:0 auto;padding:24px 30px 70px}
+    .req{color:var(--red);font-weight:700}
+    .apply-done{display:none}
+    .apply-done.show{display:block}
+    .apply-form.hide{display:none}
+    .done-card{text-align:center;padding:36px 24px}
+    .done-card .tick{width:52px;height:52px;border-radius:50%;background:var(--green-soft);color:var(--green);
+      display:grid;place-items:center;font-size:25px;margin:0 auto 16px}
+    .done-card h2{font-family:"Archivo";font-size:20px;margin:0 0 8px}
+    .done-card p{color:var(--muted);font-size:13.5px;margin:0 auto;max-width:430px;line-height:1.6}
+    .apply-foot{text-align:center;margin-top:20px;font-size:12.5px;color:var(--muted)}
+    .apply-foot a{color:var(--teal);font-weight:600}
+    @media(max-width:620px){
+      .apply-top{padding:24px 18px 28px}
+      .apply-top h1{font-size:22px}
+      .apply-wrap{padding:20px 16px 50px}
+      .split{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <header class="apply-top">
+    <div class="inner">
+      <div class="apply-org">
+        <div class="crest">M</div>
+        <div><b>Meridian University</b><small>CRICOS 00000A · TEQSA regulated</small></div>
+      </div>
+      <div class="apply-eyebrow">Agent partner application</div>
+      <h1>Apply to represent Meridian University</h1>
+      <p>Tell us about your agency. We review every application and reply by email. If we take things
+        forward we'll issue your login, then ask for your compliance documents through the portal —
+        you don't need to attach anything now, and you don't need an account to apply.</p>
+    </div>
+  </header>
+
+  <div class="apply-wrap">
+    <div class="apply-form" id="applyForm">
+      <div class="box">
+        <div class="box-h"><h3>Your agency</h3><div class="spacer"></div>
+          <span class="small muted">Fields marked <span class="req">*</span> are required</span></div>
+        <div class="box-b">
+          <div class="auth-err" id="err" style="display:none"></div>
+
+          <div class="field">
+            <label for="business_name">Agency name <span class="req">*</span></label>
+            <input id="business_name" type="text" placeholder="e.g. Beacon Global Education Pty Ltd" autofocus />
+          </div>
+          <div class="split">
+            <div class="field">
+              <label for="abn">ABN <span class="req">*</span></label>
+              <input id="abn" type="text" inputmode="numeric" placeholder="11 digits" />
+            </div>
+            <div class="field">
+              <label for="marn">MARN (if you also give migration advice)</label>
+              <input id="marn" type="text" placeholder="e.g. MARN-1234567" />
+            </div>
+          </div>
+          <div class="split">
+            <div class="field">
+              <label for="operator_name">Primary contact <span class="req">*</span></label>
+              <input id="operator_name" type="text" placeholder="Full name" />
+            </div>
+            <div class="field">
+              <label for="operator_email">Contact email <span class="req">*</span></label>
+              <input id="operator_email" type="email" placeholder="you@agency.com" />
+            </div>
+          </div>
+          <div class="split">
+            <div class="field">
+              <label for="origin_city">City</label>
+              <input id="origin_city" type="text" placeholder="e.g. Bengaluru" />
+            </div>
+            <div class="field">
+              <label for="source_market">Market / region you recruit from</label>
+              <input id="source_market" type="text" placeholder="e.g. India — Karnataka" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="note">Anything else we should know?</label>
+            <input id="note" type="text" placeholder="Optional — how long you've operated, other institutions you represent" />
+          </div>
+
+          <div class="note"><span class="i">ℹ</span> If you hold a MARN, tell us here. It doesn't count against you —
+            it just means you'll be asked to sign a conflict-of-interest declaration before your students are counted.</div>
+
+          <button class="btn primary block" id="submitBtn" type="button" style="margin-top:14px">Submit application</button>
+        </div>
+      </div>
+      <div class="apply-foot">Already partnered with us? <a href="/login">Sign in to the portal</a></div>
+    </div>
+
+    <div class="apply-done" id="applyDone">
+      <div class="box"><div class="box-b done-card">
+        <div class="tick">✓</div>
+        <h2>Application received</h2>
+        <p id="doneMsg">Thanks — your application is with our team. We review every application and will
+          email you at the address you gave us. If we go ahead, that email will include your portal login.</p>
+      </div></div>
+      <div class="apply-foot"><a href="/login">Back to sign in</a></div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/apply.js"></script>
+</body>
+</html>

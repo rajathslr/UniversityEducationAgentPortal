@@ -109,6 +109,25 @@ function renderApplication(a) {
     dr.appendChild(hardstop('red', '✕', 'Application not successful', a.decision_reason || ''));
   }
 
+  // The details on file for you — what you told us when you applied.
+  dr.appendChild(el('div', { class: 'box' }, [
+    el('div', { class: 'box-h' }, [el('h3', {}, ['Your agency details'])]),
+    el('div', { class: 'box-b' }, [
+      kv([
+        ['ABN', a.abn],
+        ['Contact', a.operator_name],
+        ['Email', a.operator_email],
+        ['City', a.origin_city || '—'],
+        ['Market', a.source_market || '—'],
+        ['MARN', a.marn || 'None on file'],
+      ]),
+      el('div', { class: 'note', style: 'margin-top:10px' }, [
+        el('span', { class: 'i' }, ['ℹ']),
+        el('span', {}, ['Something not right? Ask your Meridian contact to update it — these details are part of your compliance record.']),
+      ]),
+    ]),
+  ]));
+
   if (a.agreements.length) {
     const g = a.agreements[a.agreements.length - 1];
     dr.appendChild(el('div', { class: 'box' }, [

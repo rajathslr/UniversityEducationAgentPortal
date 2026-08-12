@@ -15,6 +15,7 @@ DROP TABLE IF EXISTS agreements            CASCADE;
 DROP TABLE IF EXISTS audit_log             CASCADE;
 DROP TABLE IF EXISTS referee_checks        CASCADE;
 DROP TABLE IF EXISTS agent_documents       CASCADE;
+DROP TABLE IF EXISTS agent_applications    CASCADE;
 DROP TABLE IF EXISTS agents                CASCADE;
 
 -- =====================================================================
@@ -28,6 +29,7 @@ CREATE TABLE agents (
   operator_name   TEXT        NOT NULL,              -- the single operator account
   operator_email  TEXT        NOT NULL,
   source_market   TEXT        NOT NULL DEFAULT 'India', -- label only; ignored in rules
+  origin_city     TEXT,                                 -- carried over from a public application
   -- Pipeline: New -> In Review -> Docs Requested -> Verified -> Decision
   stage           TEXT        NOT NULL DEFAULT 'New',
   decision        TEXT,                               -- 'Approved' | 'Rejected' | NULL
@@ -46,6 +48,30 @@ CREATE TABLE agents (
   --   'Active' -> 'Notice Given' -> 'Terminated'
   relationship_status TEXT     NOT NULL DEFAULT 'Active',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Public "apply to partner" submissions. Deliberately NOT the agents table:
+-- the submit endpoint is unauthenticated, so anything the open internet can
+-- post lands here first and only becomes a real agent once an admin approves
+-- it. Approval creates the agents row + the operator login and links back
+-- via agent_id.
+CREATE TABLE agent_applications (
+  id              SERIAL PRIMARY KEY,
+  business_name   TEXT        NOT NULL,
+  abn             TEXT        NOT NULL,
+  operator_name   TEXT        NOT NULL,
+  operator_email  TEXT        NOT NULL,
+  origin_city     TEXT,
+  source_market   TEXT,
+  marn            TEXT,                                 -- declared; drives the COI gate once onboarded
+  note            TEXT,                                 -- free-text "about your agency"
+  status          TEXT        NOT NULL DEFAULT 'Pending', -- 'Pending' | 'Approved' | 'Rejected'
+  submitted_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  submitted_ip    TEXT,                                 -- abuse triage only
+  reviewed_at     TIMESTAMPTZ,
+  reviewed_by     TEXT,
+  decision_reason TEXT,
+  agent_id        INTEGER REFERENCES agents(id) ON DELETE SET NULL  -- set on approval
 );
 
 -- A document is REQUESTED by an officer, then FULFILLED by the agent uploading

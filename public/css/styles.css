@@ -237,6 +237,12 @@ td .ssub{font-size:11px;color:var(--muted-2)}
 .kv .k{color:var(--muted)}
 
 .empty{color:var(--muted);font-style:italic;padding:12px 0;font-size:13px}
+/* Small text utilities — already referenced by the view scripts. */
+.small{font-size:12px}
+.muted{color:var(--muted)}
+/* Inline form error, shared by the public pages. */
+.auth-err{background:var(--red-soft);color:var(--red);border:1px solid var(--red);
+  border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:14px}
 .timeline{position:relative;padding-left:18px}
 .timeline .tl{position:relative;padding:0 0 14px 4px}
 .timeline .tl::before{content:"";position:absolute;left:-14px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--teal);border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}

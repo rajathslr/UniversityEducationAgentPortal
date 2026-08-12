@@ -38,8 +38,132 @@ async function init() {
   document.getElementById('createAgencyBtn').addEventListener('click', createAgency);
   fillAgencySample();
 
+  await loadApplications();
   await loadAgencies();
   await loadUsers();
+}
+
+// ---- public applications review queue ----
+const APP_CHIP = { Pending: 'amber', Approved: 'green', Rejected: 'red' };
+
+async function loadApplications() {
+  const apps = await getJSON('/api/admin/applications');
+  const host = document.getElementById('applicationList');
+  host.innerHTML = '';
+
+  const pending = apps.filter((a) => a.status === 'Pending');
+  const badge = document.getElementById('appsBadge');
+  if (pending.length) { badge.style.display = ''; badge.textContent = String(pending.length); }
+  else badge.style.display = 'none';
+
+  if (!apps.length) {
+    host.appendChild(el('div', { class: 'box' }, [el('div', { class: 'box-b' }, [
+      el('div', { class: 'empty' }, ['No applications yet. They arrive from the public form at /apply.']),
+    ])]));
+    return;
+  }
+
+  // Pending get a full review card; decided ones collapse into a compact table.
+  pending.forEach((a) => host.appendChild(applicationCard(a)));
+
+  const decided = apps.filter((a) => a.status !== 'Pending');
+  if (decided.length) {
+    host.appendChild(el('div', { class: 'sec-head', style: 'margin-top:22px' }, [
+      el('h2', {}, ['Already reviewed']),
+      el('p', {}, [String(decided.length) + ' application' + (decided.length === 1 ? '' : 's')]),
+    ]));
+    host.appendChild(el('div', { class: 'box' }, [table(
+      ['Agency', 'Contact', 'Status', 'Reviewed', 'Reason'],
+      decided.map((a) => [
+        { node: el('div', {}, [
+          el('div', { class: 'sname' }, [a.business_name]),
+          el('div', { class: 'ssub mono' }, ['ABN ' + a.abn]),
+        ]) },
+        a.operator_name || '—',
+        { node: chip(a.status, APP_CHIP[a.status] || 'grey', true) },
+        { node: el('span', { class: 'small muted' }, [
+          fmtDate(a.reviewed_at) + (a.reviewed_by ? ' · ' + a.reviewed_by : '')]) },
+        { node: el('span', { class: 'small muted' }, [a.decision_reason || '—']) },
+      ])
+    )]));
+  }
+}
+
+function applicationCard(a) {
+  const box = el('div', { class: 'box' }, [
+    el('div', { class: 'box-h' }, [
+      el('h3', {}, [a.business_name]),
+      chip('Pending', 'amber', true),
+      el('div', { class: 'spacer' }),
+      el('span', { class: 'small muted' }, ['Applied ' + fmtDateTime(a.submitted_at)]),
+    ]),
+  ]);
+  const body = el('div', { class: 'box-b' });
+  body.appendChild(kv([
+    ['ABN', a.abn],
+    ['Primary contact', a.operator_name],
+    ['Email', a.operator_email],
+    ['City', a.origin_city || '—'],
+    ['Market', a.source_market || '—'],
+    ['MARN', a.marn || 'None declared'],
+  ]));
+  if (a.note) {
+    body.appendChild(el('div', { class: 'note', style: 'margin-top:10px' },
+      [el('span', { class: 'i' }, ['“']), el('span', {}, [a.note])]));
+  }
+  if (a.marn) {
+    body.appendChild(el('div', { class: 'note', style: 'margin-top:8px' }, [
+      el('span', { class: 'i' }, ['⚠']),
+      el('span', {}, ['Declared a MARN — once approved this agency is a dual agent, so its students stay on hold until the conflict-of-interest declaration is signed.']),
+    ]));
+  }
+
+  // Approving needs a login; suggest a sensible username but let it be edited.
+  const suggested = (a.business_name || 'agent').toLowerCase()
+    .replace(/pty|ltd|limited|\./g, '').trim().split(/\s+/)[0].replace(/[^a-z0-9]/g, '').slice(0, 12)
+    || 'agent';
+  const userIn = el('input', { type: 'text', value: suggested });
+  const passIn = el('input', { type: 'text', value: 'Temp' + Math.floor(Math.random() * 9000 + 1000) + '!' });
+  body.appendChild(el('div', { style: 'margin-top:14px;border-top:1px solid var(--line-2);padding-top:14px' }, [
+    el('div', { style: 'font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px' },
+      ['Issue their login (they sign in with these)']),
+    el('div', { class: 'split' }, [
+      el('div', { class: 'field' }, [el('label', {}, ['Username']), userIn]),
+      el('div', { class: 'field' }, [el('label', {}, ['Initial password (min 8)']), passIn]),
+    ]),
+    el('div', { class: 'actions' }, [
+      el('button', { class: 'btn sm primary', onclick: () => approveApplication(a, userIn.value.trim(), passIn.value) },
+        ['Approve & create agency']),
+      el('button', { class: 'btn sm danger', onclick: () => rejectApplication(a) }, ['Reject']),
+    ]),
+  ]));
+  box.appendChild(body);
+  return box;
+}
+
+async function approveApplication(a, username, password) {
+  if (!username) { toast('Enter a username for their login.', 'err'); return; }
+  if ((password || '').length < 8) { toast('Password must be at least 8 characters.', 'err'); return; }
+  if (!confirm('Approve “' + a.business_name + '”?\n\nThis creates the agency at the New stage, issues the login "'
+    + username + '", and requests their onboarding documents.')) return;
+  try {
+    const r = await postJSON('/api/admin/applications/' + a.id + '/approve', { username, password });
+    toast('Approved — “' + r.agent.business_name + '” created with login “' + r.user.username + '”.', 'ok');
+    await loadApplications();
+    await loadAgencies();
+    await loadUsers();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function rejectApplication(a) {
+  const reason = prompt('Why is “' + a.business_name + '” being rejected?\n(Kept on the record.)');
+  if (reason === null) return;
+  if (!reason.trim()) { toast('A reason is required.', 'err'); return; }
+  try {
+    await postJSON('/api/admin/applications/' + a.id + '/reject', { reason: reason.trim() });
+    toast('Application rejected.', 'ok');
+    await loadApplications();
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 // ---- existing agencies list ----

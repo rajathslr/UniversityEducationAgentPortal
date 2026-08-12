@@ -51,6 +51,8 @@
     .auth-err{display:none;background:var(--red-soft);color:var(--red);border:1px solid var(--red);
       border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:14px}
     .auth-err.show{display:block}
+    .applylink{margin:16px 0 0;font-size:12.5px;color:var(--muted);text-align:center}
+    .applylink a{color:var(--teal);font-weight:600}
     .tlsnote{margin-top:18px;font-size:11.5px;color:var(--muted-2);display:flex;gap:7px;align-items:flex-start}
   </style>
 </head>
@@ -92,6 +94,7 @@
           <input id="password" name="password" type="password" autocomplete="current-password" required />
         </div>
         <button class="btn primary block" type="submit" id="submitBtn">Sign in</button>
+        <p class="applylink">Not a Meridian agent yet? <a href="/apply">Apply to partner with us</a></p>
         <div class="tlsnote"><span>🔒</span><span>Connection secured with TLS (self-signed certificate). Your password is sent over HTTPS and stored only as a salted hash.</span></div>
       </form>
     </div>
