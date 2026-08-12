@@ -18,11 +18,6 @@ async function init() {
     document.getElementById('tab-' + a.dataset.tab).classList.add('show');
   });
 
-  // Populate agency dropdown (admins may read the agent list).
-  const agents = await getJSON('/api/agents');
-  const sel = document.getElementById('agentId');
-  agents.forEach((a) => sel.appendChild(el('option', { value: a.id }, [a.business_name])));
-
   // Show/hide the agency field based on role.
   const roleSel = document.getElementById('role');
   const toggleAgency = () => {
@@ -38,9 +33,22 @@ async function init() {
   document.getElementById('createAgencyBtn').addEventListener('click', createAgency);
   fillAgencySample();
 
+  await loadAgencyOptions();
   await loadApplications();
   await loadAgencies();
   await loadUsers();
+}
+
+// Fill the "Agency (for agent)" picker. Must be re-run whenever an agency is
+// added — creating one or approving an application — or the new agency can't
+// be picked until the page is reloaded.
+async function loadAgencyOptions() {
+  const agents = await getJSON('/api/agents');
+  const sel = document.getElementById('agentId');
+  const previous = sel.value;
+  sel.innerHTML = '';
+  agents.forEach((a) => sel.appendChild(el('option', { value: a.id }, [a.business_name])));
+  if (previous && agents.some((a) => String(a.id) === previous)) sel.value = previous;
 }
 
 // ---- public applications review queue ----
@@ -150,6 +158,7 @@ async function approveApplication(a, username, password) {
     const r = await postJSON('/api/admin/applications/' + a.id + '/approve', { username, password });
     toast('Approved — “' + r.agent.business_name + '” created with login “' + r.user.username + '”.', 'ok');
     await loadApplications();
+    await loadAgencyOptions();
     await loadAgencies();
     await loadUsers();
   } catch (e) { toast(e.message, 'err'); }
@@ -221,6 +230,7 @@ async function createAgency() {
     const r = await postJSON('/api/admin/agencies', body);
     toast('Agency created — login “' + r.user.username + '” · starts at New with documents requested.', 'ok');
     fillAgencySample();
+    await loadAgencyOptions();
     await loadAgencies();
     await loadUsers();
   } catch (e) { toast(e.message, 'err'); }
