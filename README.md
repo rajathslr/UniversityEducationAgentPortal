@@ -8,16 +8,30 @@ data persisted in Postgres.
 Single jurisdiction (AUD, Australian rules: ESOS Act, National Code 2018, PRISMS,
 TEQSA). Students are imported reference data. "India" is only a source-market label.
 
-The two features that make this not a spreadsheet:
+The headline features that make this not a spreadsheet:
 
 1. **Commission reconciliation guardrails** — a server-side engine that refuses to pay
    commission on a non-grandfathered **onshore transfer** and **freezes** a dual-agent's
    students until a Conflict-of-Interest (COI) declaration is signed.
 2. **Collateral version control** — exactly one CURRENT version per document, with a
    mandatory **acknowledgment ledger** (audit evidence that agents discarded old files).
+3. **Public application intake** — a public `/apply` form writes to a **separate
+   `agent_applications` staging table** (never the live pipeline); an officer/admin reviews
+   and, on approval, an agency + agent login + document checklist are created in one
+   transaction.
+4. **Real document uploads** — the officer requests a document, the agent uploads one real
+   file per request (PDF/PNG/JPG ≤ 10 MB, stored on disk, served only through authenticated
+   endpoints); both sides can view it, the agent can delete/replace, the officer verifies.
+5. **Reference-check automation (Dify)** — an officer opens a referee slot, the agent fills
+   the referee's details, the officer sends it; a Dify workflow emails the referee a form
+   whose result posts back to a single-use callback token. *(Built + smoke-tested; the
+   Dify-side workflow wiring is the remaining blocker — see §12.)*
+6. **Live College dashboard** — KPI cards (in-pipeline / documents-requested / verified this
+   month / expiring documents) and per-section pending badges, all computed from real rows.
 
 Access is authenticated: **separate logins for College officers and Agent operators**,
-plus an **Admin** who manages accounts — all served over **HTTPS (self-signed cert)**.
+plus an **Admin** who manages accounts and agencies — all served over **HTTPS (self-signed
+cert)**. The UI uses a left-sidebar shell (`css/nocturne.css` + `css/styles.css`).
 
 ---
 
@@ -39,7 +53,16 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=ChangeMe!23           # bootstrap admin (seed only) — CHANGE THIS
 SEED_USER_PASSWORD=Passw0rd!23       # default pw for seeded officer/agent logins
 # HTTP_REDIRECT_PORT=8080            # optional: 301-redirect plain HTTP -> HTTPS
+
+# Reference-check automation (optional; leave as placeholders to disable "Send")
+DIFY_API_KEY=app-changeme                                   # Dify Workflow #1 API key ("app-…")
+DIFY_CALLBACK_FORM_URL=https://udify.app/workflow/xxxx      # referee-facing form (Workflow #2)
+REFEREE_NOTIFY_EMAIL=changeme@example.com                   # free-tier Dify sends every email here
 ```
+
+See `.env.example` for the annotated version. **Real keys live only in `.env` (git-ignored);
+never commit them.** The `DIFY_*` / `REFEREE_NOTIFY_EMAIL` vars are only needed for the
+reference-check "Send" step (§12).
 
 **If your Postgres differs**, edit `DATABASE_URL` in `.env`:
 - Different password → change the `postgres:<password>` part.
@@ -57,8 +80,16 @@ npm run setup     # = migrate + seed + gen-cert (self-signed TLS certificate)
 npm start         # serves on https://localhost:3000
 ```
 
-`npm run setup` is the one-shot; the individual steps are `npm run migrate`,
-`npm run seed`, `npm run gen-cert`.
+`npm run setup` is the one-shot for a **fresh** local DB; the individual steps are
+`npm run migrate`, `npm run seed`, `npm run gen-cert`.
+
+> **Migrations are additive.** `db/schema.sql` opens with a `DROP TABLE` block fenced by
+> `-- @fresh-only:start / :end`; `migrate.js` **strips it unless you pass `--fresh`**, and
+> all `CREATE`s are `IF NOT EXISTS`. New columns go in the catch-up
+> `ALTER … ADD COLUMN IF NOT EXISTS` block at the foot of `schema.sql`. So plain
+> `node scripts/migrate.js` upgrades an existing DB **without dropping data**.
+> `npm run setup` / `npm run reset` pass `--fresh` (+ `seed --force`) and **wipe everything**
+> — never run them against a live/production database.
 
 Then open the **login page** (accept the browser's one-time self-signed warning):
 
@@ -111,12 +142,14 @@ table; resetting a user's password invalidates their existing sessions.
 an **immutable audit-log row** — all persisted to Postgres and surviving a server
 restart. **Reject with reason** does the same (records the reason + audit row).
 
-**Phase 1 onboarding journey (live, both sides):** the agent uploads compliance documents
-(simulated — metadata only, persisted), which nudges the application from New → In Review;
-the college verifies each document and advances the pipeline stage
+**Phase 1 onboarding journey (live, both sides):** the officer **requests** documents; the
+agent uploads a **real file per request** (`multer`, disk storage under `uploads/`, viewable
+inline, deletable/replaceable), which nudges the application from New → In Review; the
+college verifies each document and advances the pipeline stage
 (In Review → Docs Requested → Verified); every step writes an immutable audit row. A
 **progress rail** on both the College dossier and the Agent portal renders the current
-stage. Approve/Reject close it out (P0 above).
+stage. Approve/Reject close it out (P0 above). New agencies can also arrive via the public
+`/apply` form (staged in `agent_applications`, approved by an officer).
 
 **P1 — real read APIs:** Phase 2 collateral repository + acknowledgment ledger, and
 Phase 3 reconciliation rendering the onshore block and COI freeze from real rows.
@@ -154,6 +187,11 @@ brackets: **[O]** officer/admin, **[Ag]** agent (own agency only), **[Ad]** admi
 | POST | `/api/auth/login` `{username,password}` | Sign in; sets the session cookie |
 | POST | `/api/auth/logout` | End the session |
 | GET  | `/api/auth/me` | Current user |
+| POST | `/api/apply` `{business_name, abn, …}` **[public]** | Submit an agency application → `agent_applications` (rate-limited, validated) |
+| POST | `/api/referee-callback` `{token, passed, notes}` **[public]** | Dify posts the reference result back; the single-use `token` is the auth |
+| GET  | `/api/college/summary` **[O]** | Dashboard KPIs + per-section pending counts |
+| GET  | `/api/admin/applications` **[Ad]** · `…/:id/approve` · `…/:id/reject {reason}` | Review public applications; approve creates agency+login+checklist in one txn |
+| POST | `/api/admin/agencies` `{business_name, abn, …, username, password}` **[Ad]** | Create an agency (stage New) + its agent login + default doc checklist |
 | GET  | `/api/admin/users` **[Ad]** | List all users |
 | POST | `/api/admin/users` `{username,password,role,fullName,agentId}` **[Ad]** | Create user |
 | POST | `/api/admin/users/:id/reset-password` `{password}` **[Ad]** | Reset password (invalidates their sessions) |
@@ -161,9 +199,14 @@ brackets: **[O]** officer/admin, **[Ag]** agent (own agency only), **[Ad]** admi
 | GET  | `/api/agents?stage=` **[O]** | List agents (optionally filtered by pipeline stage) |
 | GET  | `/api/agents/:id` **[O/Ag-own]** | Full dossier (docs, referees, agreements, students) |
 | GET  | `/api/agents/:id/audit` | Append-only audit log |
-| POST | `/api/agents/:id/stage` `{stage, note}` | Drive the review pipeline (New→In Review→Docs Requested→Verified) + audit row |
-| POST | `/api/agents/:id/documents` `{doc_type, reference, expiry_date}` | Agent uploads a document (simulated); auto-moves New→In Review + audit row |
-| POST | `/api/agents/:id/documents/:docId/verify` | College verifies a document + audit row |
+| POST | `/api/agents/:id/stage` `{stage, note}` **[O]** | Drive the review pipeline (New→In Review→Docs Requested→Verified) + audit row |
+| POST | `/api/agents/:id/documents/request` `{doc_type}` **[O]** | Officer requests one document |
+| POST | `/api/agents/:id/documents/:docId/file` (multipart `file`) **[O/Ag-own]** | Upload the real file; auto-moves New→In Review |
+| GET  | `/api/agents/:id/documents/:docId/file` **[O/Ag-own]** | View/download the file inline |
+| DELETE | `/api/agents/:id/documents/:docId/file` **[O/Ag-own]** | Remove the uploaded file (→ back to Requested) |
+| DELETE | `/api/agents/:id/documents/:docId` **[O]** | Cancel a document request |
+| POST | `/api/agents/:id/documents/:docId/verify` **[O]** | Verify an uploaded document + audit row |
+| POST | `/api/agents/:id/referees/request` **[O]** · `…/:refId/submit` **[Ag-own]** · `…/:refId/send` **[O]** | Reference-check slot → agent fills → officer sends (Dify) |
 | POST | `/api/agents/:id/approve` | **P0** Verified → Decision + agreement + audit row |
 | POST | `/api/agents/:id/reject` `{reason}` | **P0** Reject with reason + audit row |
 | GET  | `/api/agents/:id/performance` | Recruited, conversion, subclass-500 refusal rate, pre-census withdrawals |
@@ -222,6 +265,13 @@ restart**; acknowledge wrote a row; COI sign shifted **frozen 1→0, payable 2�
 ---
 
 ## 8. Scripted ~10-minute demo walkthrough
+
+> ⚠ **This script predates the sidebar redesign.** The flow is still accurate, but names
+> have changed: agents now have **separate logins** (no "Signed in as" picker — sign in as
+> the agent directly), the College sections are a **left sidebar** ("Applications /
+> Marketing materials / Commission review / Offboarding", not "Phase 1/2/3 tabs"), and
+> document upload is **request-driven with real files**. Treat the beats below as the
+> storyline, not literal labels.
 
 > Have both tabs open. Start from a freshly seeded DB (`npm run reset`).
 > Colour language throughout: **green = payable/verified, amber = pending/frozen,
@@ -324,30 +374,32 @@ versioned collateral with acknowledgment evidence — all persisted in Postgres.
 Temp_VMS/
 ├── package.json
 ├── .env / .env.example
-├── certs/                      # self-signed TLS (git-ignored; created by gen-cert)
-│   ├── server.key
-│   └── server.cert
+├── DEPLOY.md                   # droplet deployment runbook
+├── deploy/remote-setup.sh      # idempotent, isolated droplet provisioner
+├── certs/  uploads/  logs/     # all git-ignored (TLS, uploaded files, logs)
 ├── db/
-│   └── schema.sql              # full schema incl. users + sessions (idempotent)
+│   └── schema.sql              # additive schema (DROP block fenced @fresh-only; ALTER catch-up block)
 ├── scripts/
-│   ├── migrate.js              # create DB if needed + apply schema
-│   ├── seed.js                 # realistic dummy data + seeded users
+│   ├── migrate.js              # apply schema (additive unless --fresh)
+│   ├── seed.js                 # demo data + users (refuses populated DB unless --force)
 │   └── gen-cert.js             # self-signed cert generator (pure JS)
 ├── src/
-│   ├── server.js               # Express app, HTTPS, all REST endpoints + guards
+│   ├── server.js               # Express app, HTTPS, all REST endpoints + guards + uploads (multer)
 │   ├── auth.js                 # scrypt hashing, cookie sessions, role guards
 │   ├── db.js                   # pg pool
+│   ├── logger.js               # structured JSON logging + redaction
 │   └── reconciliation.js       # PURE rule engine (onshore block + COI freeze)
 ├── test/
 │   └── reconciliation.test.js  # 9 unit tests incl. grandfathering
 └── public/
     ├── index.html
-    ├── login.html  + js/login.js
-    ├── admin.html  + js/admin.js      # user administration (admin only)
-    ├── college.html + js/college.js
-    ├── agent.html   + js/agent.js
+    ├── login.html   + js/login.js     # split-screen brand/login
+    ├── apply.html   + js/apply.js     # PUBLIC agency application form
+    ├── admin.html   + js/admin.js     # Agencies + Users (admin only)
+    ├── college.html + js/college.js   # sidebar + live dashboard
+    ├── agent.html   + js/agent.js     # sidebar portal
     ├── js/common.js
-    └── css/styles.css
+    └── css/nocturne.css + css/styles.css
 ```
 
 ## 10. Notes & assumptions
@@ -415,3 +467,42 @@ grep '"reqId":"<id>"' logs/app-<date>.log
 ```
 
 …to see the browser event and the server handler for that exact interaction together.
+
+---
+
+## 12. Deployment
+
+Production runs on a DigitalOcean droplet, **fully isolated** from a co-hosted app: its own
+port (8444), its own `agentms` Postgres DB, its own `agentms` systemd service + OS user, its
+own ufw rule, and **no nginx changes**. Full runbook: **`DEPLOY.md`**; provisioner:
+`deploy/remote-setup.sh` (idempotent).
+
+Because migrations are additive, a normal deploy preserves live data:
+
+```bash
+sudo -u agentms git -C /opt/agentms/app pull --ff-only
+cd /opt/agentms/app && sudo -u agentms node scripts/migrate.js   # additive, no --fresh
+systemctl restart agentms
+```
+
+**Never** run `--fresh` / `npm run reset` / `npm run setup` against the droplet — they drop
+and re-seed the database.
+
+---
+
+## 13. Reference-check automation (Dify) — status
+
+Flow: officer opens a referee slot → agent fills the referee's name/org/email (own agency
+only) → officer clicks **Send** → server calls `POST https://api.dify.ai/v1/workflows/run`
+with `DIFY_API_KEY` → the Dify workflow emails the referee a link to a hosted form
+(`DIFY_CALLBACK_FORM_URL`) → the form's result posts back to the **public, single-use**
+`POST /api/referee-callback` (the UUID token *is* the auth) → the check is marked
+`Passed`/`Failed`.
+
+- **Free-tier constraint:** every email is sent to `REFEREE_NOTIFY_EMAIL` regardless of what
+  the agent typed (Dify free plan sends to one address); the agent's value is stored for the
+  record only.
+- **Status:** the server side is built and the send path is verified live. The remaining
+  blocker is **Dify-side** — Workflow #2's HTTP node must build the callback JSON with Dify's
+  variable picker (not hand-typed `{{ }}`), and Dify rejects the self-signed cert (needs a
+  real domain). Until then the callback is not usable end to end.
