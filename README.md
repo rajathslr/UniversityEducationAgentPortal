@@ -35,6 +35,20 @@ cert)**. The UI uses a left-sidebar shell (`css/nocturne.css` + `css/styles.css`
 
 ---
 
+## Screenshots
+
+Captured from the running app (dark UI theme).
+
+| Sign-in | Officer console — live dashboard |
+| :---: | :---: |
+| ![Sign in](docs/screenshots/1-login.png) | ![College dashboard](docs/screenshots/3-college-dashboard.png) |
+| **Commission review — the guardrails** | **Agent portal** |
+| ![Commission review](docs/screenshots/4-college-commissions.png) | ![Agent portal](docs/screenshots/6-agent-portal.png) |
+| **Admin — agencies** | **Public application form** |
+| ![Admin agencies](docs/screenshots/5-admin-agencies.png) | ![Apply](docs/screenshots/2-apply.png) |
+
+---
+
 ## 1. Requirements
 
 - **Node.js** 18+ (built and verified on Node 24).
